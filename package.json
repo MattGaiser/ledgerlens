@@ -1,0 +1,14 @@
+{
+  "name": "ledgerlens",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:browser": "playwright test",
+    "prepare:data": "node scripts/prepare-data.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "office-addin-manifest": "3.0.1"
+  }
+}

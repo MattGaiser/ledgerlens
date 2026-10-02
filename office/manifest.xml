@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="TaskPaneApp">
+  <Id>f4b14285-ef5e-4aef-81d5-b366bcb59867</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>LedgerLens independent demonstration</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="LedgerLens Research" />
+  <Description DefaultValue="Sourced financial research and snapshot insertion. An independent engineering demonstration." />
+  <IconUrl DefaultValue="https://127.0.0.1:17844/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://127.0.0.1:17844/assets/icon-80.png" />
+  <SupportUrl DefaultValue="https://127.0.0.1:17844/" />
+  <Hosts><Host Name="Workbook" /></Hosts>
+  <Requirements><Sets DefaultMinVersion="1.13"><Set Name="ExcelApi" /></Sets></Requirements>
+  <DefaultSettings><SourceLocation DefaultValue="https://127.0.0.1:17844/?office=1" /></DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>

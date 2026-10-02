@@ -1,0 +1,16 @@
+﻿**/bin/
+**/obj/
+.tools/
+artifacts/
+.env
+.env.*
+.runtime/
+workbooks/
+node_modules/
+dist/
+data/raw/
+TestResults/
+playwright-report/
+test-results/
+*.user
+src/EnvironmentCheck/
