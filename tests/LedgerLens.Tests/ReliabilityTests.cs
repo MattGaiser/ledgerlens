@@ -17,13 +17,25 @@ public sealed class ReliabilityTests
     [Fact]
     public void CircuitPermitsOnlyOneRecoveryProbeAndIgnoresPreviousConnectionEpochs()
     {
-        var now = DateTimeOffset.UtcNow; var state = new ResilienceState(() => now);
-        for (var i = 0; i < 3; i++) { Assert.True(state.TryEnter(out var lease, out _)); state.Failed(lease); }
-        Assert.Equal("open", state.Circuit); Assert.False(state.TryEnter(out _, out _));
-        now += TimeSpan.FromSeconds(9); Assert.Equal("half-open", state.Circuit);
-        Assert.True(state.TryEnter(out var probe, out _)); Assert.False(state.TryEnter(out _, out _));
-        state.Succeeded(probe); Assert.Equal("closed", state.Circuit);
-        state.SetMode(ConnectionMode.Online); state.Failed(probe); state.Failed(probe); state.Failed(probe);
+        var now = DateTimeOffset.UtcNow;
+        var state = new ResilienceState(() => now);
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.True(state.TryEnter(out var lease, out _));
+            state.Failed(lease);
+        }
+        Assert.Equal("open", state.Circuit);
+        Assert.False(state.TryEnter(out _, out _));
+        now += TimeSpan.FromSeconds(9);
+        Assert.Equal("half-open", state.Circuit);
+        Assert.True(state.TryEnter(out var probe, out _));
+        Assert.False(state.TryEnter(out _, out _));
+        state.Succeeded(probe);
+        Assert.Equal("closed", state.Circuit);
+        state.SetMode(ConnectionMode.Online);
+        state.Failed(probe);
+        state.Failed(probe);
+        state.Failed(probe);
         Assert.Equal("closed", state.Circuit);
     }
 
@@ -35,7 +47,8 @@ public sealed class ReliabilityTests
         var old = cache.GetAsync("a", () => release.Task);
         cache.Clear();
         Assert.Equal(2, await cache.GetAsync("a", () => Task.FromResult(2)));
-        release.SetResult(1); Assert.Equal(1, await old);
+        release.SetResult(1);
+        Assert.Equal(1, await old);
         Assert.Equal(2, await cache.GetAsync("a", () => Task.FromResult(999)));
     }
 
@@ -52,8 +65,12 @@ public sealed class ReliabilityTests
     [Fact]
     public void InvalidReplacementNeverPartiallyUpdatesTheStore()
     {
-        var store = Store(); var original = store.ForCompany("MSFT"); var replacements = original.Select(f => f.Copy()).ToArray();
-        replacements[0].RawValue *= 2; replacements[0].Value *= 2; replacements[^1].Unit = "wrong";
+        var store = Store();
+        var original = store.ForCompany("MSFT");
+        var replacements = original.Select(f => f.Copy()).ToArray();
+        replacements[0].RawValue *= 2;
+        replacements[0].Value *= 2;
+        replacements[^1].Unit = "wrong";
         Assert.Throws<InvalidOperationException>(() => store.Replace(replacements));
         Assert.Equal(original.Select(f => f.Value), store.ForCompany("MSFT").Select(f => f.Value));
     }
@@ -61,9 +78,11 @@ public sealed class ReliabilityTests
     [Fact]
     public async Task ReadersSeeOneCompleteSnapshotDuringAConcurrentReplacement()
     {
-        var store = Store(); var before = store.ForCompany("MSFT");
+        var store = Store();
+        var before = store.ForCompany("MSFT");
         var after = before.Select(f => { var copy = f.Copy(); copy.RawValue *= 2; copy.Value *= 2; return copy; }).ToArray();
-        var first = before.Select(f => f.Value).ToArray(); var second = after.Select(f => f.Value).ToArray();
+        var first = before.Select(f => f.Value).ToArray();
+        var second = after.Select(f => f.Value).ToArray();
         var writer = Task.Run(() => { for (var i = 0; i < 100; i++) store.Replace(i % 2 == 0 ? after : before); });
         for (var i = 0; i < 500; i++)
         {
@@ -76,20 +95,26 @@ public sealed class ReliabilityTests
     [Fact]
     public void SyncedEvidenceSurvivesRestartAndCatalogReflectsIt()
     {
-        var folder = Path.Combine(Path.GetTempPath(), "LedgerLens-test-" + Guid.NewGuid()); Directory.CreateDirectory(folder);
+        var folder = Path.Combine(Path.GetTempPath(), "LedgerLens-test-" + Guid.NewGuid());
+        Directory.CreateDirectory(folder);
         try
         {
-            var file = Path.Combine(folder, "facts.json"); var source = Path.Combine(CoreTests.Root, "data", "financials.json");
-            var store = new FinancialStore(source, file); var updated = store.ForCompany("MSFT");
-            foreach (var fact in updated) fact.AcquiredAt = fact.AcquiredAt.AddMinutes(1);
-            store.Replace(updated); var restarted = new FinancialStore(source, file);
+            var file = Path.Combine(folder, "facts.json");
+            var source = Path.Combine(CoreTests.Root, "data", "financials.json");
+            var store = new FinancialStore(source, file);
+            var updated = store.ForCompany("MSFT");
+            foreach (var fact in updated)
+                fact.AcquiredAt = fact.AcquiredAt.AddMinutes(1);
+            store.Replace(updated);
+            var restarted = new FinancialStore(source, file);
             Assert.Equal(updated[0].AcquiredAt, restarted.Get(updated[0].Key).AcquiredAt);
             Assert.Equal(updated[0].AcquiredAt, restarted.Dataset.Facts.Single(f => f.Key.Equals(updated[0].Key)).AcquiredAt);
         }
         finally
         {
             var resolved = Path.GetFullPath(folder);
-            if (!resolved.StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase) || !Path.GetFileName(resolved).StartsWith("LedgerLens-test-", StringComparison.Ordinal)) throw new InvalidOperationException("Unexpected test cleanup path.");
+            if (!resolved.StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase) || !Path.GetFileName(resolved).StartsWith("LedgerLens-test-", StringComparison.Ordinal))
+                throw new InvalidOperationException("Unexpected test cleanup path.");
             Directory.Delete(resolved, true);
         }
     }
@@ -98,10 +123,23 @@ public sealed class ReliabilityTests
     public void AnnualSelectionIgnoresQuarterlyAndFutureFiledFacts()
     {
         var prior = Facts.Single(f => f.Metric == "Revenue" && f.Period == "FY2025");
-        var concept = prior.Concept.Split(':')[1]; var good = new { form = "10-K", start = "2024-07-01", end = "2025-06-30", filed = "2025-07-30", accn = "0000789019-25-000001", val = 281724000000m };
-        var json = JObject.Parse(JsonSerializer.Serialize(new { facts = new Dictionary<string, object> { ["us-gaap"] = new Dictionary<string, object> { [concept] = new { units = new Dictionary<string, object> { ["USD"] = new object[] { good, new { form = "10-K", start = "2025-04-01", end = "2025-06-30", filed = "2025-08-01", accn = good.accn, val = 1 }, new { form = "10-K", start = good.start, end = good.end, filed = "2099-01-01", accn = good.accn, val = 2 } } } } } } }));
+        var concept = prior.Concept.Split(':')[1];
+        var good = new
+        {
+            form = "10-K",
+            start = "2024-07-01",
+            end = "2025-06-30",
+            filed = "2025-07-30",
+            accn = "0000789019-25-000001",
+            val = 281724000000m
+        };
+        var json = JObject.Parse(JsonSerializer.Serialize(new
+        {
+            facts = new Dictionary<string, object> { ["us-gaap"] = new Dictionary<string, object> { [concept] = new { units = new Dictionary<string, object> { ["USD"] = new object[] { good, new { form = "10-K", start = "2025-04-01", end = "2025-06-30", filed = "2025-08-01", accn = good.accn, val = 1 }, new { form = "10-K", start = good.start, end = good.end, filed = "2099-01-01", accn = good.accn, val = 2 } } } } } }
+        }));
         var actual = SecClient.SelectAnnualFact(json, prior, "0000789019", DateTimeOffset.Parse("2026-10-02T00:00:00Z"));
-        Assert.Equal(281724m, actual.Value); Assert.Equal("2025-07-30", actual.Filed);
+        Assert.Equal(281724m, actual.Value);
+        Assert.Equal("2025-07-30", actual.Filed);
     }
 
     [Theory]
@@ -111,7 +149,9 @@ public sealed class ReliabilityTests
     [InlineData("{\"status\":\"completed\",\"output\":null}")]
     [InlineData("{\"status\":\"completed\",\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"{bad}\"}]}]}")]
     public void MalformedProviderResponsesProduceSafeValidationFailures(string raw)
-    { Assert.Equal("validation", Assert.Throws<ResearchUnavailableException>(() => ResearchService.ParseResponse(raw, Facts)).Code); }
+    {
+        Assert.Equal("validation", Assert.Throws<ResearchUnavailableException>(() => ResearchService.ParseResponse(raw, Facts)).Code);
+    }
 
     [Theory]
     [InlineData(401, "invalid_key")]
@@ -122,7 +162,9 @@ public sealed class ReliabilityTests
         using var client = new HttpClient(new Handler((_, _) => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent("sensitive-provider-payload fake-key-secret") })));
         var service = Research(client);
         var error = await Assert.ThrowsAsync<ResearchUnavailableException>(() => service.AskAsync(new ResearchRequest(), default));
-        Assert.Equal(code, error.Code); Assert.DoesNotContain("secret", error.Message); Assert.DoesNotContain("sensitive", error.Message);
+        Assert.Equal(code, error.Code);
+        Assert.DoesNotContain("secret", error.Message);
+        Assert.DoesNotContain("sensitive", error.Message);
     }
 
     [Fact]
@@ -131,7 +173,8 @@ public sealed class ReliabilityTests
         using var client = new HttpClient(new Handler((_, _) => throw new Exception("Must never send")));
         var service = new ResearchService(client, Store(), new ResilienceState(), new Lifetime(), new ResearchOptions { ReadKey = () => null });
         var answer = await service.AskAsync(new ResearchRequest(), default);
-        Assert.False(answer.IsAiGenerated); Assert.Contains(answer.Caveats, c => c.Contains("No OpenAI key"));
+        Assert.False(answer.IsAiGenerated);
+        Assert.Contains(answer.Caveats, c => c.Contains("No OpenAI key"));
     }
 
     [Fact]
@@ -149,12 +192,18 @@ public sealed class ReliabilityTests
     [Fact]
     public async Task IdenticalAiRequestsCoalesceAndReturnedObjectsAreIsolated()
     {
-        var response = JsonSerializer.Serialize(new { status = "completed", model = "fixture-model", output = new[] { new { content = new[] { new { type = "output_text", text = JsonSerializer.Serialize(ResearchService.Describe(Facts, "Fixture")) } } } } });
+        var response = JsonSerializer.Serialize(new
+        {
+            status = "completed",
+            model = "fixture-model",
+            output = new[] { new { content = new[] { new { type = "output_text", text = JsonSerializer.Serialize(ResearchService.Describe(Facts, "Fixture")) } } } }
+        });
         var calls = 0;
         using var client = new HttpClient(new Handler(async (_, token) => { Interlocked.Increment(ref calls); await Task.Delay(50, token); return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(response, Encoding.UTF8, "application/json") }; }));
         var service = Research(client);
         var answers = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => service.AskAsync(new ResearchRequest(), default)));
-        Assert.Equal(1, calls); Assert.All(answers, a => Assert.True(a.IsAiGenerated));
+        Assert.Equal(1, calls);
+        Assert.All(answers, a => Assert.True(a.IsAiGenerated));
         answers[0].Claims[0].Text = "Changed only here";
         Assert.DoesNotContain(answers.Skip(1), a => a.Claims[0].Text == "Changed only here");
         Assert.True((await service.AskAsync(new ResearchRequest(), default)).Cached);
@@ -162,12 +211,16 @@ public sealed class ReliabilityTests
 
     private static ResearchService Research(HttpClient http, TimeSpan? timeout = null) => new(http, Store(), new ResilienceState(), new Lifetime(), new ResearchOptions { ReadKey = () => "fake-key-secret", Timeout = timeout ?? TimeSpan.FromSeconds(3) });
     private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
-    { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken); }
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
+    }
     private sealed class Lifetime : IHostApplicationLifetime
     {
         public CancellationToken ApplicationStarted => default;
         public CancellationToken ApplicationStopping => default;
         public CancellationToken ApplicationStopped => default;
-        public void StopApplication() { }
+        public void StopApplication()
+        {
+        }
     }
 }

@@ -63,6 +63,37 @@ if ($OfficePreview) {
 if ($Browser) { Start-Process ($endpoint.BaseUrl+'/#session='+$endpoint.Token) }
 if ($NoExcel) { return }
 
+function Get-FormulaErrorCount($Workbook) {
+    $worksheets=$null; $errorCount=0
+    try {
+        $worksheets=$Workbook.Worksheets
+        for($index=1; $index -le $worksheets.Count; $index++) {
+            $worksheet=$null; $used=$null; $errors=$null
+            try {
+                $worksheet=$worksheets.Item($index)
+                $used=$worksheet.UsedRange
+                try { $errors=$used.SpecialCells(-4123,16) }
+                catch {
+                    # SpecialCells raises Excel error 1004 when no matching cells exist.
+                    $failure=$_.Exception
+                    while($failure.InnerException){$failure=$failure.InnerException}
+                    if($failure.HResult -ne -2146827284){throw}
+                }
+                if($errors){$errorCount+=$errors.Count}
+            } finally {
+                foreach($com in @($errors,$used,$worksheet)) {
+                    if($com -and [Runtime.InteropServices.Marshal]::IsComObject($com)){
+                        [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($com)
+                    }
+                }
+            }
+        }
+        return $errorCount
+    } finally {
+        if($worksheets){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($worksheets)}
+    }
+}
+
 $app=$null; $books=$null; $blank=$null; $book=$null; $addin=$null; $addins=$null; $sheet=$null; $cell=$null; $success=$false
 $env:LEDGERLENS_ROOT = $root
 try {
@@ -75,13 +106,26 @@ try {
     $xll=Join-Path $nativeDir $xllName
     if (-not (Test-Path -LiteralPath $xll)) { throw 'The native add-in is missing. Keep the entire release folder together.' }
     $addins=$app.AddIns; $addin=$addins.Add($xll,$false); $addin.Installed=$true
+    $productVersion=[string]$app.Run('LL.VERSION')
+    $assemblyVersion=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $nativeDir 'LedgerLens.Core.dll')).Version
+    $expectedVersion='LedgerLens '+$assemblyVersion.ToString(3)
+    if($productVersion -ne $expectedVersion){throw 'Excel loaded a different LedgerLens version. Save and close LedgerLens workbooks before upgrading.'}
     [void]$app.Run('LL.NEW')
     $book=$books.Item($books.Count)
     if ($book.Worksheets.Count -ne 5) { throw 'The analyst workbook could not be created. See .runtime\excel.log.' }
     $sheet=$book.Worksheets.Item('Dashboard'); $cell=$sheet.Range('D10')
     $deadline=[DateTime]::UtcNow.AddSeconds(25)
-    do { $app.Calculate(); $revenue=$cell.Value2; if($revenue -eq 281724){break}; Start-Sleep -Milliseconds 200 } while ([DateTime]::UtcNow -lt $deadline)
-    if ($revenue -ne 281724) { throw 'The initial financial formula did not resolve. See .runtime\excel.log.' }
+    do {
+        $app.Calculate()
+        $revenue=$cell.Value2
+        $formulaErrors=Get-FormulaErrorCount $book
+        $calculationDone=$app.CalculationState -eq 0
+        if($revenue -eq 281724 -and $formulaErrors -eq 0 -and $calculationDone){break}
+        Start-Sleep -Milliseconds 200
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if ($revenue -ne 281724 -or $formulaErrors -ne 0 -or -not $calculationDone) {
+        throw 'The initial workbook formulas did not all resolve within 25 seconds. See .runtime\excel.log.'
+    }
     $outputDir=Join-Path $root 'workbooks'; [void](New-Item -ItemType Directory -Path $outputDir -Force)
     $outputPath=Join-Path $outputDir ('LedgerLens-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'-'+[Guid]::NewGuid().ToString('N').Substring(0,6)+'.xlsx')
     $book.SaveCopyAs($outputPath)
@@ -91,8 +135,8 @@ try {
     [void]$app.Run('LL.OPEN')
     if ($Validate) {
         Start-Sleep -Milliseconds 2000
-        [ordered]@{checkedAt=[DateTime]::UtcNow.ToString('o');status='PASS';excelVersion=$app.Version;excelBuild=$app.Build;architecture=$machine;worksheets=$book.Worksheets.Count;revenue=$revenue;workbook=$outputPath;addin=$xll} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runtime 'launch-validation.json') -Encoding UTF8
-        Write-Output 'PASS: native add-in loaded, five worksheets created, asynchronous SEC formula resolved, saved workbook reopened, research pane opened.'
+        [ordered]@{checkedAt=[DateTime]::UtcNow.ToString('o');status='PASS';productVersion=$productVersion;excelVersion=$app.Version;excelBuild=$app.Build;architecture=$machine;worksheets=$book.Worksheets.Count;revenue=$revenue;resolvedFormulaErrors=$formulaErrors;workbook=$outputPath;addin=$xll} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runtime 'launch-validation.json') -Encoding UTF8
+        Write-Output 'PASS: native add-in loaded, five worksheets created, all initial formulas resolved, saved workbook reopened, research pane opened.'
     } else {
         Write-Output ('Opened '+$outputPath)
     }

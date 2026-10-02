@@ -1,14 +1,17 @@
 {
   "name": "ledgerlens",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
     "test:browser": "playwright test",
-    "prepare:data": "node scripts/prepare-data.mjs"
+    "prepare:data": "node scripts/prepare-data.mjs",
+    "format:check": "prettier --check web scripts/*.mjs tests/**/*.js tests/*.mjs playwright.config.js",
+    "format": "prettier --write web scripts/*.mjs tests/**/*.js tests/*.mjs playwright.config.js"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
-    "office-addin-manifest": "3.0.1"
+    "office-addin-manifest": "3.0.1",
+    "prettier": "3.6.2"
   }
 }

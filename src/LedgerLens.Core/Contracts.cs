@@ -9,18 +9,30 @@ namespace LedgerLens.Core
 {
     public sealed class FactKey : IEquatable<FactKey>
     {
-        public string Ticker { get; }
-        public string Metric { get; }
-        public string Period { get; }
+        public string Ticker
+        {
+            get;
+        }
+        public string Metric
+        {
+            get;
+        }
+        public string Period
+        {
+            get;
+        }
         [JsonConstructor]
         public FactKey(string ticker, string metric, string period)
         {
             Ticker = (ticker ?? "").Trim().ToUpperInvariant();
-            if (!Regex.IsMatch(Ticker, @"^[A-Z][A-Z0-9.\-]{0,9}$")) throw new ArgumentException("Use a ticker such as MSFT.", nameof(ticker));
+            if (!Regex.IsMatch(Ticker, @"^[A-Z][A-Z0-9.\-]{0,9}$"))
+                throw new ArgumentException("Use a ticker such as MSFT.", nameof(ticker));
             Metric = MetricCatalog.Normalize(metric);
             Period = (period ?? "").Trim().ToUpperInvariant();
-            if (Regex.IsMatch(Period, @"^20\d{2}$")) Period = "FY" + Period;
-            if (!Regex.IsMatch(Period, @"^FY20\d{2}$")) throw new ArgumentException("Use an annual fiscal period such as FY2025.", nameof(period));
+            if (Regex.IsMatch(Period, @"^20\d{2}$"))
+                Period = "FY" + Period;
+            if (!Regex.IsMatch(Period, @"^FY20\d{2}$"))
+                throw new ArgumentException("Use an annual fiscal period such as FY2025.", nameof(period));
         }
         public bool Equals(FactKey? other) => other != null && Ticker == other.Ticker && Metric == other.Metric && Period == other.Period;
         public override bool Equals(object? obj) => Equals(obj as FactKey);
@@ -32,9 +44,15 @@ namespace LedgerLens.Core
     {
         public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>
         {
-            ["Revenue"] = "Revenue", ["GrossProfit"] = "Gross profit", ["OperatingIncome"] = "Operating income",
-            ["NetIncome"] = "Net income", ["OperatingCashFlow"] = "Operating cash flow", ["CapitalExpenditure"] = "Capital expenditure",
-            ["DilutedEPS"] = "Diluted EPS", ["Assets"] = "Total assets", ["Cash"] = "Cash & equivalents"
+            ["Revenue"] = "Revenue",
+            ["GrossProfit"] = "Gross profit",
+            ["OperatingIncome"] = "Operating income",
+            ["NetIncome"] = "Net income",
+            ["OperatingCashFlow"] = "Operating cash flow",
+            ["CapitalExpenditure"] = "Capital expenditure",
+            ["DilutedEPS"] = "Diluted EPS",
+            ["Assets"] = "Total assets",
+            ["Cash"] = "Cash & equivalents"
         };
         public static string Normalize(string? value)
         {
@@ -50,36 +68,58 @@ namespace LedgerLens.Core
         public string Metric { get; set; } = "";
         public string Label { get; set; } = "";
         public string Period { get; set; } = "";
-        public decimal Value { get; set; }
-        public decimal RawValue { get; set; }
+        public decimal Value
+        {
+            get; set;
+        }
+        public decimal RawValue
+        {
+            get; set;
+        }
         public string Unit { get; set; } = "";
-        public string? Start { get; set; }
+        public string? Start
+        {
+            get; set;
+        }
         public string End { get; set; } = "";
         public string Filed { get; set; } = "";
         public string Accession { get; set; } = "";
         public string Concept { get; set; } = "";
         public string SourceUrl { get; set; } = "";
         public string SourceId { get; set; } = "";
-        public DateTimeOffset AcquiredAt { get; set; }
+        public DateTimeOffset AcquiredAt
+        {
+            get; set;
+        }
         [JsonIgnore] public FactKey Key => new FactKey(Ticker, Metric, Period);
         public FinancialFact Copy() => (FinancialFact)MemberwiseClone();
         public void Validate()
         {
             _ = Key;
-            if (Unit != (Metric == "DilutedEPS" ? "USD/share" : "USD millions")) throw new InvalidOperationException("Unexpected fact units.");
-            if (Value != (Metric == "DilutedEPS" ? RawValue : RawValue / 1000000m)) throw new InvalidOperationException("Unit conversion does not reconcile.");
+            if (Unit != (Metric == "DilutedEPS" ? "USD/share" : "USD millions"))
+                throw new InvalidOperationException("Unexpected fact units.");
+            if (Value != (Metric == "DilutedEPS" ? RawValue : RawValue / 1000000m))
+                throw new InvalidOperationException("Unit conversion does not reconcile.");
             var accession = Accession ?? "";
-            if (!Regex.IsMatch(accession, @"^\d{10}-\d{2}-\d{6}$")) throw new InvalidOperationException("Invalid SEC accession.");
-            if (!Uri.TryCreate(SourceUrl, UriKind.Absolute, out var source) || source.Scheme != "https" || source.Host != "www.sec.gov" || !source.AbsolutePath.StartsWith("/Archives/edgar/data/", StringComparison.Ordinal)) throw new InvalidOperationException("Unexpected filing source.");
-            if (!source.AbsolutePath.EndsWith("/" + accession.Replace("-", "") + "/" + accession + "-index.html", StringComparison.Ordinal) || source.Query.Length != 0 || source.Fragment.Length != 0) throw new InvalidOperationException("Filing URL does not match its SEC accession.");
-            if (!DateTime.TryParseExact(End, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || Period != "FY" + end.Year) throw new InvalidOperationException("Fiscal period does not reconcile with end date for supported issuers.");
-            if (!DateTime.TryParseExact(Filed, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var filed) || filed < end || filed > AcquiredAt.UtcDateTime.Date) throw new InvalidOperationException("Invalid filing date.");
+            if (!Regex.IsMatch(accession, @"^\d{10}-\d{2}-\d{6}$"))
+                throw new InvalidOperationException("Invalid SEC accession.");
+            if (!Uri.TryCreate(SourceUrl, UriKind.Absolute, out var source) || source.Scheme != "https" || source.Host != "www.sec.gov" || !source.AbsolutePath.StartsWith("/Archives/edgar/data/", StringComparison.Ordinal))
+                throw new InvalidOperationException("Unexpected filing source.");
+            if (!source.AbsolutePath.EndsWith("/" + accession.Replace("-", "") + "/" + accession + "-index.html", StringComparison.Ordinal) || source.Query.Length != 0 || source.Fragment.Length != 0)
+                throw new InvalidOperationException("Filing URL does not match its SEC accession.");
+            if (!DateTime.TryParseExact(End, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || Period != "FY" + end.Year)
+                throw new InvalidOperationException("Fiscal period does not reconcile with end date for supported issuers.");
+            if (!DateTime.TryParseExact(Filed, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var filed) || filed < end || filed > AcquiredAt.UtcDateTime.Date)
+                throw new InvalidOperationException("Invalid filing date.");
             if (Metric != "Assets" && Metric != "Cash")
             {
-                if (!DateTime.TryParseExact(Start, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) || (end - start).TotalDays < 330 || (end - start).TotalDays > 380) throw new InvalidOperationException("Fact is not an annual reporting period.");
+                if (!DateTime.TryParseExact(Start, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) || (end - start).TotalDays < 330 || (end - start).TotalDays > 380)
+                    throw new InvalidOperationException("Fact is not an annual reporting period.");
             }
-            else if (Start != null) throw new InvalidOperationException("An instant balance-sheet fact cannot have a duration.");
-            if (SourceId != Ticker + "-" + Metric + "-" + Period || string.IsNullOrWhiteSpace(Concept) || !Concept.StartsWith("us-gaap:", StringComparison.Ordinal)) throw new InvalidOperationException("Fact provenance is incomplete.");
+            else if (Start != null)
+                throw new InvalidOperationException("An instant balance-sheet fact cannot have a duration.");
+            if (SourceId != Ticker + "-" + Metric + "-" + Period || string.IsNullOrWhiteSpace(Concept) || !Concept.StartsWith("us-gaap:", StringComparison.Ordinal))
+                throw new InvalidOperationException("Fact provenance is incomplete.");
         }
     }
 
@@ -93,10 +133,16 @@ namespace LedgerLens.Core
     }
     public sealed class FinancialDataset
     {
-        public int Version { get; set; }
+        public int Version
+        {
+            get; set;
+        }
         public string SnapshotDate { get; set; } = "";
         public string Description { get; set; } = "";
-        public DateTimeOffset AcquiredAt { get; set; }
+        public DateTimeOffset AcquiredAt
+        {
+            get; set;
+        }
         public Company[] Companies { get; set; } = Array.Empty<Company>();
         public FinancialFact[] Facts { get; set; } = Array.Empty<FinancialFact>();
     }
@@ -105,7 +151,10 @@ namespace LedgerLens.Core
         public FinancialFact Fact { get; set; } = new FinancialFact();
         public string Freshness { get; set; } = "snapshot";
         public string Provider { get; set; } = "SEC snapshot";
-        public DateTimeOffset ServedAt { get; set; }
+        public DateTimeOffset ServedAt
+        {
+            get; set;
+        }
         public string Message { get; set; } = "";
     }
     public sealed class ResearchRequest
@@ -128,15 +177,30 @@ namespace LedgerLens.Core
         public FinancialFact[] Sources { get; set; } = Array.Empty<FinancialFact>();
         public string Provider { get; set; } = "";
         public string Model { get; set; } = "";
-        public bool IsAiGenerated { get; set; }
-        public bool Cached { get; set; }
-        public DateTimeOffset GeneratedAt { get; set; }
+        public bool IsAiGenerated
+        {
+            get; set;
+        }
+        public bool Cached
+        {
+            get; set;
+        }
+        public DateTimeOffset GeneratedAt
+        {
+            get; set;
+        }
     }
     public sealed class RuntimeEndpoint
     {
         public string BaseUrl { get; set; } = "";
-        public string? OfficeUrl { get; set; }
+        public string? OfficeUrl
+        {
+            get; set;
+        }
         public string Token { get; set; } = "";
-        public int ProcessId { get; set; }
+        public int ProcessId
+        {
+            get; set;
+        }
     }
 }

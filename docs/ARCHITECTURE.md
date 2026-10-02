@@ -19,6 +19,8 @@ flowchart LR
 
 The task pane marshals WebView2 calls back to its UI thread after asynchronous work. Panes belong to Excel windows, and a command must still target the active owning window before it can write. Closing a pane cancels queued work. Disposal is idempotent across Excel's callbacks and explicit test shutdown.
 
+Queued workbook commands have a 25-second deadline. `QueuedAction` makes cancellation atomic with the start of synchronous execution: an expired queued command cannot write later, and a write that has begun reports its actual outcome. The pane retains its service origin independently of the service singleton so late teardown callbacks do not access a disposed client. WebView2 profiles live inside each release's private runtime folder.
+
 Inside the add-in, RCWs are left to the runtime; manual `ReleaseComObject` can invalidate shared references. The separate PowerShell automation process explicitly releases its own COM references and unloads via Excel's AddIns manager. This distinction follows [Excel-DNA COM guidance](https://excel-dna.net/docs/guides-basic/excel-programming-interfaces/using-the-excel-com-automation-interfaces/).
 
 Excel-DNA was selected because this demonstration centers on C# UDFs and calculation behavior. It is not a VSTO implementation. Core contracts, refresh planning, and the service are reusable by a future VSTO adapter. A separate Office.js bridge demonstrates a cross-platform UI seam without claiming native feature parity.
@@ -30,6 +32,8 @@ Excel-DNA was selected because this demonstration centers on C# UDFs and calcula
 `WorkbookActions` captures each value before changing it. The reported numbers, imported-company marker, and full evidence audit form one transaction. Exceptions trigger restoration; Excel calculation mode, events, and screen updating are restored in `finally`. Rollback checks the post-apply values, including the appended audit, before undoing. Later analyst-input edits survive. The last transaction is retained only for the current session; the source audit is saved with the workbook.
 
 Changing company after import makes forecast formulas blank until another reviewed import establishes matching company context. This prevents mixing one issuer's imported actuals with another issuer's forecasts.
+
+Each open workbook object receives an independent session ID. The saved document GUID alone is insufficient because Excel's Save Copy preserves it. Closing a copy therefore cannot clear the original's pending preview or undo history. Already-current historical cells remain preview dependencies, so editing them after preview also blocks the transaction.
 
 ## Service and resilience
 

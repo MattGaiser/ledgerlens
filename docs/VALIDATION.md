@@ -1,33 +1,33 @@
-# Validation report — LedgerLens 1.0.0
+# Validation report — LedgerLens 1.0.1
 
-Evidence recorded on 2026-10-02. This is a prototype validation report for one Windows workstation, with measured results and explicit coverage limits.
+Report generated on 2026-10-02. Each evidence file retains its own test/acquisition timestamp. This is a prototype validation report for one Windows workstation, with measured results and explicit coverage limits.
 
 ## Results
 
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Release build, warnings as errors | PASS; native x64/x86 artifacts and self-contained win-x64 service | build.ps1 |
-| .NET unit and contract tests | 36 passed | unit-results.trx |
-| HTTP, resilience, request limits, WebSocket lifecycle | 13 passed | service-results.json |
-| Real Excel and WebView2 workflow | 14 passed; 0 JavaScript errors | native-results.json |
+| .NET unit and contract tests | 50 passed | unit-results.trx |
+| HTTP, resilience, request limits, WebSocket lifecycle | 15 passed | service-results.json |
+| Real Excel and WebView2 workflow | 19 passed; 0 JavaScript errors | native-results.json |
 | Edge browser UI | 8 passed, 0 unexpected failures | browser-results.json |
 | Office.js adapter | 9 passed | office-adapter.tap |
 | Office XML manifest | Validator passed | office-manifest.txt |
 | Original SEC source reconciliation | 81 facts passed against 3 hashed source files | source-reconciliation.json |
 | Live SEC refresh | PASS; 27 MSFT facts; 2518 ms | live-sec-sync.json |
 | Live OpenAI research | Completed; cited claims inspected against supplied facts | live-openai.json |
-| Saved workbook | PASS; 6 sheets, 64 formulas, 0 cached formula errors | workbook-inspection.json |
-| Fresh extracted release launcher | PASS | release-launch.json |
+| Saved workbook | PASS; 6 sheets, 65 formulas, 0 cached formula errors | workbook-inspection.json |
+| Fresh extracted release launcher | PASS; 63 saved formulas, 0 cached errors | release-launch.json |
 | Dependency audit | No known vulnerabilities reported by NuGet or npm at check time | dependency-audit.txt, npm-audit.json |
 
 Machine-readable files are included under validation/ in the release and source archives; local development results are under artifacts/validation/.
 
 ## Measured performance
 
-- 2,000 identical asynchronous Excel formulas: **1 provider load**, 41 ms to write/start calculation, 2601.4 ms for all cells to resolve with an injected two-second provider delay.
-- A separate Excel ready/status call during that delay completed in **106.5 ms**. This includes the PowerShell harness polling overhead; it is not a pure UI frame-time measurement.
-- 100 warm local HTTP requests: p50 **0.6 ms**, p95 **0.8 ms**.
-- Four workbook/pane create-close cycles: Excel private memory ranged from **350.9 to 377.7 MiB**; stream subscriber count was 2, 2, 2, 2. The short observation is useful lifecycle evidence, not proof against every long-running leak.
+- 2,000 identical asynchronous Excel formulas: **1 provider load**, 39 ms to write/start calculation, 2602.0 ms for all cells to resolve with an injected two-second provider delay.
+- A separate Excel ready/status call during that delay completed in **219.1 ms**. This includes the PowerShell harness polling overhead; it is not a pure UI frame-time measurement.
+- 100 warm local HTTP requests: p50 **0.4 ms**, p95 **0.7 ms**.
+- 12 workbook/pane create-close cycles: Excel private memory ranged from **320.6 to 415.5 MiB**; stream subscriber count was 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2. The short observation is useful lifecycle evidence, not proof against every long-running leak.
 - Closing a workbook canceled 1 pending formula waiter in the real host. Shared provider work remains available to other callers.
 
 Measurements come from this workstation and this bounded dataset. They are not claims about AlphaSense's infrastructure, arbitrary workbooks, or every supported Office version.

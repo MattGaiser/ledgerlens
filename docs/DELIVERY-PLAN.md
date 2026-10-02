@@ -36,13 +36,13 @@ An independent pre-interview demonstration for the AlphaSense Excel engineering 
 All nine delivery gates have evidence in [VALIDATION.md](VALIDATION.md) and the packaged machine-readable reports.
 
 1. Native x64/x86 and self-contained Windows service build successfully with warnings as errors; dependency audits report no known vulnerabilities.
-2. 36 .NET unit/contract tests pass, including cache, cancellation, source selection, state, and AI failure fixtures.
-3. 13 service checks pass, including authentication, request limits, Host/Origin protection, offline recovery, and WebSocket reconnect/cleanup.
-4. 14 real Excel/WebView2 checks pass, including workbook-close cancellation, formulas, guarded updates, audit, rollback, and lifecycle.
+2. 50 .NET unit/contract tests pass, including cache, cancellation, source selection, state, and AI failure fixtures.
+3. 15 service checks pass, including authentication, request limits, Host/Origin protection, offline recovery, and WebSocket reconnect/cleanup.
+4. 19 real Excel/WebView2 checks pass, including workbook-close cancellation, formulas, guarded updates, audit, rollback, and lifecycle.
 5. Eight browser tests and nine Office.js adapter tests pass; native UI screenshots were inspected. Office manifest validation passes.
-6. The 2,000-formula benchmark coalesces to one provider request; latency and four lifecycle samples are recorded with their measurement scope.
+6. The 2,000-formula benchmark coalesces to one provider request; latency and twelve lifecycle samples are recorded with their measurement scope.
 7. Live OpenAI generation succeeds; cited numerical claims were inspected. Negative fixtures cover unavailable, rejected, timeout, refusal, incomplete, and malformed responses.
 8. All 81 facts reconcile independently to three hashed original SEC responses. Live SEC sync revalidated 27 Microsoft facts.
-9. A freshly extracted self-contained release, in a path containing spaces, loaded the XLL, created the workbook, resolved a financial formula, saved/reopened it, opened WebView2, and unloaded cleanly. The example workbook has six sheets, 64 formulas, and no cached formula errors. Package credentials are scanned and file hashes recorded.
+9. A freshly extracted self-contained release, in a path containing spaces, loaded the XLL, created the workbook, resolved a financial formula, saved/reopened it, opened WebView2, and unloaded cleanly. The example workbook has six sheets, 65 formulas, and no cached formula errors. Package credentials are scanned and file hashes recorded.
 
 The tested product target is Windows Microsoft 365 Excel x64. Mac/Office.js host operation, older Excel versions, enterprise SSO, AWS, signed deployment, and managed updates remain explicitly outside the validated prototype scope. They are not represented as completed product capabilities.

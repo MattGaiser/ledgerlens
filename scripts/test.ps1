@@ -23,6 +23,10 @@ try {
         return
     }
     $sdk=Join-Path $env:ProgramFiles 'dotnet\dotnet.exe'
+    & $sdk format whitespace LedgerLens.sln --no-restore --verify-no-changes --verbosity minimal
+    if($LASTEXITCODE -ne 0){throw 'C# formatting check failed.'}
+    & (Join-Path $root 'node_modules\.bin\prettier.cmd') --check web 'scripts/*.mjs' 'tests/**/*.js' 'tests/*.mjs' playwright.config.js
+    if($LASTEXITCODE -ne 0){throw 'Web formatting check failed.'}
     & $sdk test tests/LedgerLens.Tests/LedgerLens.Tests.csproj -c Release --nologo --logger 'trx;LogFileName=unit-results.trx' --results-directory artifacts/validation/unit
     if($LASTEXITCODE -ne 0){throw '.NET tests failed.'}
     & node --test tests/office-bridge.test.mjs

@@ -1,86 +1,268 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LedgerLens · Research workspace</title>
-  <link rel="stylesheet" href="/styles.css">
-  <script type="module" src="/app.js"></script>
-</head>
-<body>
-  <div class="app-shell">
-    <header class="masthead">
-      <a class="brand" href="#overview" aria-label="LedgerLens home"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#127d72"/><path d="M8 9v15h16M12 19l5-6 4 3 4-7" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Ledger<span class="brand-light">Lens</span></span></a>
-      <span class="connection-pill" id="connection-state"><i></i>Connecting</span>
-    </header>
-    <div class="workspace-caption"><span>RESEARCH WORKSPACE</span><span id="host-state">Connecting to workspace…</span></div>
-    <nav class="tabs" aria-label="Workspace sections">
-      <button class="tab active" data-tab="overview" aria-current="page">Overview</button>
-      <button class="tab" data-tab="research">Research</button>
-      <button class="tab" data-tab="refresh">Refresh</button>
-      <button class="tab" data-tab="health">Health</button>
-    </nav>
-    <main>
-      <div id="notice" class="notice" role="status" hidden></div>
-      <section id="view-overview" class="view active" aria-labelledby="overview-title">
-        <div class="eyebrow">COMPANY INTELLIGENCE</div>
-        <div class="heading-row"><h1 id="overview-title">Know the numbers.<br><span class="quiet">Keep the context.</span></h1><span class="mini-mark">↗</span></div>
-        <div class="company-switcher" id="company-switcher" aria-label="Select company"></div>
-        <div class="company-heading"><div class="company-avatar" id="company-avatar">M</div><div><h2 id="company-name">Microsoft</h2><p id="company-detail">MSFT · Fiscal year ends June 30</p></div><span class="source-badge">SEC FILINGS</span></div>
-        <article class="revenue-card">
-          <div class="card-overline"><span>ANNUAL REVENUE</span><span>FY2025</span></div>
-          <div class="revenue-line"><strong id="revenue-value">—</strong><span id="revenue-change" class="change-chip">—</span></div>
-          <div id="revenue-chart" class="sparkline" aria-label="Revenue over three fiscal years"></div>
-          <div class="chart-labels"><span>FY2023</span><span>FY2024</span><span>FY2025</span></div>
-        </article>
-        <div class="section-heading"><h3>The fundamentals</h3><span>USD millions · FY2025</span></div>
-        <div class="metric-list" id="metric-list"></div>
-        <article class="card formula-card">
-          <div class="card-title"><span class="icon-box">ƒx</span><div><h3>Bring a fact into your model</h3><p>A formula with its evidence attached.</p></div></div>
-          <div class="field-pair"><label>Metric<select id="formula-metric"></select></label><label>Fiscal period<select id="formula-period"><option>FY2025</option><option>FY2024</option><option>FY2023</option></select></label></div>
-          <code id="formula-preview" class="formula-preview"></code>
-          <div class="button-row"><button class="button primary" id="insert-formula">Insert into Excel <span>↗</span></button><button class="button secondary" id="copy-formula">Copy</button></div>
-          <p class="fine-print" id="insert-hint">Choose an empty cell in Excel, then insert.</p>
-        </article>
-        <button class="text-button source-action" id="sync-sec">↻ Check SEC for revised filings</button>
-        <p class="footnote">Historical annual fundamentals. Fiscal calendars differ. <span id="snapshot-note"></span></p>
-      </section>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LedgerLens · Research workspace</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="masthead">
+        <a class="brand" href="#overview" aria-label="LedgerLens home"
+          ><svg viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="9" fill="#127d72" />
+            <path
+              d="M8 9v15h16M12 19l5-6 4 3 4-7"
+              fill="none"
+              stroke="white"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            /></svg
+          ><span>Ledger<span class="brand-light">Lens</span></span></a
+        >
+        <span class="connection-pill" id="connection-state"><i></i>Connecting</span>
+      </header>
+      <div class="workspace-caption">
+        <span>RESEARCH WORKSPACE</span><span id="host-state">Connecting to workspace…</span>
+      </div>
+      <nav class="tabs" aria-label="Workspace sections">
+        <button class="tab active" data-tab="overview" aria-current="page">Overview</button>
+        <button class="tab" data-tab="research">Research</button>
+        <button class="tab" data-tab="refresh">Refresh</button>
+        <button class="tab" data-tab="health">Health</button>
+      </nav>
+      <main>
+        <div id="notice" class="notice" role="status" hidden></div>
+        <section id="view-overview" class="view active" aria-labelledby="overview-title">
+          <div class="eyebrow">COMPANY INTELLIGENCE</div>
+          <div class="heading-row">
+            <h1 id="overview-title">
+              Know the numbers.<br /><span class="quiet">Keep the context.</span>
+            </h1>
+            <span class="mini-mark">↗</span>
+          </div>
+          <div class="company-switcher" id="company-switcher" aria-label="Select company"></div>
+          <div class="company-heading">
+            <div class="company-avatar" id="company-avatar">M</div>
+            <div>
+              <h2 id="company-name">Microsoft</h2>
+              <p id="company-detail">MSFT · Fiscal year ends June 30</p>
+            </div>
+            <span class="source-badge">SEC FILINGS</span>
+          </div>
+          <article class="revenue-card">
+            <div class="card-overline"><span>ANNUAL REVENUE</span><span>FY2025</span></div>
+            <div class="revenue-line">
+              <strong id="revenue-value">—</strong
+              ><span id="revenue-change" class="change-chip">—</span>
+            </div>
+            <div
+              id="revenue-chart"
+              class="sparkline"
+              aria-label="Revenue over three fiscal years"
+            ></div>
+            <div class="chart-labels">
+              <span>FY2023</span><span>FY2024</span><span>FY2025</span>
+            </div>
+          </article>
+          <div class="section-heading">
+            <h3>The fundamentals</h3>
+            <span>USD millions · FY2025</span>
+          </div>
+          <div class="metric-list" id="metric-list"></div>
+          <article class="card formula-card">
+            <div class="card-title">
+              <span class="icon-box">ƒx</span>
+              <div>
+                <h3>Bring a fact into your model</h3>
+                <p>A formula with its evidence attached.</p>
+              </div>
+            </div>
+            <div class="field-pair">
+              <label>Metric<select id="formula-metric"></select></label
+              ><label
+                >Fiscal period<select id="formula-period">
+                  <option>FY2025</option>
+                  <option>FY2024</option>
+                  <option>FY2023</option>
+                </select></label
+              >
+            </div>
+            <code id="formula-preview" class="formula-preview"></code>
+            <div class="button-row">
+              <button class="button primary" id="insert-formula">
+                Insert into Excel <span>↗</span></button
+              ><button class="button secondary" id="copy-formula">Copy</button>
+            </div>
+            <p class="fine-print" id="insert-hint">Choose an empty cell in Excel, then insert.</p>
+          </article>
+          <button class="text-button source-action" id="sync-sec">
+            ↻ Check SEC for revised filings
+          </button>
+          <p class="footnote">
+            Historical annual fundamentals. Fiscal calendars differ.
+            <span id="snapshot-note"></span>
+          </p>
+        </section>
 
-      <section id="view-research" class="view" aria-labelledby="research-title" hidden>
-        <div class="eyebrow">EVIDENCE BEFORE OPINION</div><h1 id="research-title">A clearer view<br><span class="quiet">of what changed.</span></h1>
-        <div class="research-context"><span class="context-dot"></span><strong id="research-company">MSFT</strong><span>FY2023–FY2025 · reported financials</span></div>
-        <label class="question-label" for="research-question">Ask about the financials</label>
-        <textarea id="research-question" maxlength="1200" rows="4">What changed in profitability and cash generation from FY2024 to FY2025?</textarea>
-        <div class="prompt-chips"><button data-question="How did revenue growth compare with operating income growth?">Growth vs. margins</button><button data-question="What happened to cash generation after capital expenditure?">Cash conversion</button></div>
-        <div class="research-controls"><label class="checkbox-label"><input id="use-ai" type="checkbox" checked><span>Use OpenAI</span></label><span class="fine-print">Only sourced facts are sent</span></div>
-        <button id="run-research" class="button primary full">Research this company <span>→</span></button>
-        <div id="research-progress" class="progress-box" hidden role="status"><span class="spinner"></span><div><strong>Reading the evidence</strong><p>Comparing annual facts and checking citations…</p></div><button class="text-button" id="cancel-research">Cancel</button></div>
-        <div id="research-answer"></div>
-        <div class="empty-state" id="research-empty"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M11 8h20l7 7v26H11zM30 8v9h8M18 24h13M18 30h9"/></svg><h3>Every claim has a paper trail.</h3><p>Answers cite the specific financial facts used. Select a citation to inspect its filing, period, and units.</p></div>
-      </section>
+        <section id="view-research" class="view" aria-labelledby="research-title" hidden>
+          <div class="eyebrow">EVIDENCE BEFORE OPINION</div>
+          <h1 id="research-title">
+            A clearer view<br /><span class="quiet">of what changed.</span>
+          </h1>
+          <div class="research-context">
+            <span class="context-dot"></span><strong id="research-company">MSFT</strong
+            ><span>FY2023–FY2025 · reported financials</span>
+          </div>
+          <label class="question-label" for="research-question">Ask about the financials</label>
+          <textarea id="research-question" maxlength="1200" rows="4">
+What changed in profitability and cash generation from FY2024 to FY2025?</textarea
+          >
+          <div class="prompt-chips">
+            <button data-question="How did revenue growth compare with operating income growth?">
+              Growth vs. margins</button
+            ><button data-question="What happened to cash generation after capital expenditure?">
+              Cash conversion
+            </button>
+          </div>
+          <div class="research-controls">
+            <label class="checkbox-label"
+              ><input id="use-ai" type="checkbox" checked /><span>Use OpenAI</span></label
+            ><span class="fine-print">Only sourced facts are sent</span>
+          </div>
+          <button id="run-research" class="button primary full">
+            Research this company <span>→</span>
+          </button>
+          <div id="research-progress" class="progress-box" hidden role="status">
+            <span class="spinner"></span>
+            <div>
+              <strong>Reading the evidence</strong>
+              <p>Comparing annual facts and checking citations…</p>
+            </div>
+            <button class="text-button" id="cancel-research">Cancel</button>
+          </div>
+          <div id="research-answer"></div>
+          <div class="empty-state" id="research-empty">
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M11 8h20l7 7v26H11zM30 8v9h8M18 24h13M18 30h9" />
+            </svg>
+            <h3>Every claim has a paper trail.</h3>
+            <p>
+              Answers cite the specific financial facts used. Select a citation to inspect its
+              filing, period, and units.
+            </p>
+          </div>
+        </section>
 
-      <section id="view-refresh" class="view" aria-labelledby="refresh-title" hidden>
-        <div class="eyebrow">MODEL CONTROL</div><h1 id="refresh-title">Refresh with<br><span class="quiet">your work intact.</span></h1>
-        <p class="lead">Review reported values before they enter the model. Your forecast formulas and assumptions stay yours.</p>
-        <div class="workflow-steps"><span class="step current">1 <b>Preview</b></span><i></i><span class="step">2 <b>Review</b></span><i></i><span class="step">3 <b>Apply</b></span></div>
-        <article class="card"><div class="card-title"><span class="icon-box">↻</span><div><h3>Annual model refresh</h3><p>Fill the designated reported-data cells.</p></div></div><button class="button primary full" id="preview-refresh">Preview workbook changes <span>→</span></button><p id="refresh-hint" class="fine-print">Use the included Model worksheet. Only tracked historical inputs can be updated.</p></article>
-        <div id="refresh-plan"></div>
-        <div class="protection-list"><div><span>✓</span><p><strong>Forecasts preserved</strong><small>Formula cells are excluded from the write set.</small></p></div><div><span>✓</span><p><strong>Edits checked again</strong><small>A change after preview stops the entire update.</small></p></div><div><span>✓</span><p><strong>Guarded rollback</strong><small>Undo the last update without overwriting later edits.</small></p></div></div>
-        <button class="button secondary full" id="rollback-refresh">Undo last model update</button>
-      </section>
+        <section id="view-refresh" class="view" aria-labelledby="refresh-title" hidden>
+          <div class="eyebrow">MODEL CONTROL</div>
+          <h1 id="refresh-title">Refresh with<br /><span class="quiet">your work intact.</span></h1>
+          <p class="lead">
+            Review reported values before they enter the model. Your forecast formulas and
+            assumptions stay yours.
+          </p>
+          <div class="workflow-steps">
+            <span class="step current">1 <b>Preview</b></span
+            ><i></i><span class="step">2 <b>Review</b></span
+            ><i></i><span class="step">3 <b>Apply</b></span>
+          </div>
+          <article class="card">
+            <div class="card-title">
+              <span class="icon-box">↻</span>
+              <div>
+                <h3>Annual model refresh</h3>
+                <p>Fill the designated reported-data cells.</p>
+              </div>
+            </div>
+            <button class="button primary full" id="preview-refresh">
+              Preview workbook changes <span>→</span>
+            </button>
+            <p id="refresh-hint" class="fine-print">
+              Use the included Model worksheet. Only tracked historical inputs can be updated.
+            </p>
+          </article>
+          <div id="refresh-plan"></div>
+          <div class="protection-list">
+            <div>
+              <span>✓</span>
+              <p>
+                <strong>Forecasts preserved</strong
+                ><small>Formula cells are excluded from the write set.</small>
+              </p>
+            </div>
+            <div>
+              <span>✓</span>
+              <p>
+                <strong>Edits checked again</strong
+                ><small>A change after preview stops the entire update.</small>
+              </p>
+            </div>
+            <div>
+              <span>✓</span>
+              <p>
+                <strong>Guarded rollback</strong
+                ><small>Undo the last update without overwriting later edits.</small>
+              </p>
+            </div>
+          </div>
+          <button class="button secondary full" id="rollback-refresh">
+            Undo last model update
+          </button>
+        </section>
 
-      <section id="view-health" class="view" aria-labelledby="health-title" hidden>
-        <div class="eyebrow">WORKSPACE HEALTH</div><h1 id="health-title">Built for the<br><span class="quiet">imperfect connection.</span></h1>
-        <div class="health-banner"><span class="status-orb"></span><div><strong id="health-headline">Checking service</strong><p id="health-description">Request coalescing, local evidence, bounded work.</p></div></div>
-        <div id="health-grid" class="health-grid"></div>
-        <article class="card"><div class="section-heading"><h3>Connection scenarios</h3><span>DEMO CONTROLS</span></div><p class="fine-print">Exercise failure and recovery while keeping Excel open.</p><div class="mode-grid"><button data-mode="online">Online</button><button data-mode="offline">Offline</button><button data-mode="slow">Slow · 2 sec</button><button data-mode="unavailable">Provider outage</button></div></article>
-        <div class="section-heading"><h3>Live activity</h3><span id="stream-status">Connecting</span></div><div id="event-list" class="event-list"></div>
-        <div class="button-row"><button id="replay-event" class="button secondary">Replay notification</button><button id="clear-cache" class="button secondary">Clear cache</button></div>
-        <p class="footnote">Notification replay is simulated. It never changes reported financial values.</p>
-      </section>
-    </main>
-    <footer><span class="footer-dot"></span><span>Evidence. Insight. Excel.</span><span class="version">v1.0</span></footer>
-  </div>
-  <dialog id="source-dialog"><div class="dialog-header"><span class="eyebrow">SOURCE AUDIT</span><button id="close-source" class="close-button" aria-label="Close source details">×</button></div><div id="source-details"></div></dialog>
-</body>
+        <section id="view-health" class="view" aria-labelledby="health-title" hidden>
+          <div class="eyebrow">WORKSPACE HEALTH</div>
+          <h1 id="health-title">
+            Built for the<br /><span class="quiet">imperfect connection.</span>
+          </h1>
+          <div class="health-banner">
+            <span class="status-orb"></span>
+            <div>
+              <strong id="health-headline">Checking service</strong>
+              <p id="health-description">Request coalescing, local evidence, bounded work.</p>
+            </div>
+          </div>
+          <div id="health-grid" class="health-grid"></div>
+          <article class="card">
+            <div class="section-heading">
+              <h3>Connection scenarios</h3>
+              <span>DEMO CONTROLS</span>
+            </div>
+            <p class="fine-print">Exercise failure and recovery while keeping Excel open.</p>
+            <div class="mode-grid">
+              <button data-mode="online">Online</button><button data-mode="offline">Offline</button
+              ><button data-mode="slow">Slow · 2 sec</button
+              ><button data-mode="unavailable">Provider outage</button>
+            </div>
+          </article>
+          <div class="section-heading">
+            <h3>Live activity</h3>
+            <span id="stream-status">Connecting</span>
+          </div>
+          <div id="event-list" class="event-list"></div>
+          <div class="button-row">
+            <button id="replay-event" class="button secondary">Replay notification</button
+            ><button id="clear-cache" class="button secondary">Clear cache</button>
+          </div>
+          <p class="footnote">
+            Notification replay is simulated. It never changes reported financial values.
+          </p>
+        </section>
+      </main>
+      <footer>
+        <span class="footer-dot"></span><span>Evidence. Insight. Excel.</span
+        ><span class="version">v1.0</span>
+      </footer>
+    </div>
+    <dialog id="source-dialog">
+      <div class="dialog-header">
+        <span class="eyebrow">SOURCE AUDIT</span
+        ><button id="close-source" class="close-button" aria-label="Close source details">×</button>
+      </div>
+      <div id="source-details"></div>
+    </dialog>
+  </body>
 </html>

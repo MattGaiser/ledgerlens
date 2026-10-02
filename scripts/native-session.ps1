@@ -14,7 +14,7 @@ public class NativeSessionWindow {
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 }
 '@
-$app=$null; $book=$null; $blank=$null; $books=$null; $addin=$null; $addinList=$null; $pendingBook=$null; $excelProcessId=0
+$app=$null; $book=$null; $blank=$null; $books=$null; $addin=$null; $addinList=$null; $pendingBook=$null; $clone=$null; $excelProcessId=0
 try {
     $app = New-Object -ComObject Excel.Application
     $app.Visible = $true; $app.DisplayAlerts = $false
@@ -22,6 +22,14 @@ try {
     [void][NativeSessionWindow]::GetWindowThreadProcessId([IntPtr]$app.Hwnd,[ref]$excelProcessId)
     if (-not $AddInDirectory) { $AddInDirectory = Join-Path $root 'src\LedgerLens.Excel\bin\Release\net48' }
     $addinList=$app.AddIns
+    # Excel may auto-load an earlier LedgerLens build. Unload it only in this
+    # newly created test instance before registering the candidate assembly.
+    for($index=1;$index -le $addinList.Count;$index++){
+        $existing=$addinList.Item($index)
+        try {
+            if($existing.Installed -and $existing.Name -like 'LedgerLens*.xll' -and $existing.FullName.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){$existing.Installed=$false}
+        } finally {[void][Runtime.InteropServices.Marshal]::ReleaseComObject($existing)}
+    }
     $addin=$addinList.Add((Join-Path $AddInDirectory 'LedgerLens.Excel-AddIn64.xll'),$false)
     $addin.Installed=$true
     if(-not $addin.Installed){throw 'XLL installation failed.'}
@@ -47,7 +55,12 @@ try {
                         'select' { $book.Activate(); $sheet=$book.Worksheets.Item($request.sheet); $sheet.Activate(); $cell=$sheet.Range($request.address); $cell.Select(); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($cell); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($sheet); $response.result=$true }
                         'activateBlank' { $blank.Activate(); $response.result=$true }
                         'activateModel' { $book.Activate(); $response.result=$true }
+                        'protect' { $sheet=$book.Worksheets.Item($request.sheet);if($request.enabled){$sheet.Protect()}else{$sheet.Unprotect()};[void][Runtime.InteropServices.Marshal]::ReleaseComObject($sheet);$response.result=$true }
+                        'openClone' { $clonePath=Join-Path $sessionDir ('copy-'+[Guid]::NewGuid().ToString('N')+'.xlsx');$book.SaveCopyAs($clonePath);$clone=$books.Open($clonePath,0,[bool]$request.readOnly);$clone.Activate();[void]$app.Run('LL.OPEN');$response.result=$clone.Name }
+                        'readClone' { $sheet=$clone.Worksheets.Item('Model');$cell=$sheet.Range('E10');$response.result=$cell.Value2;[void][Runtime.InteropServices.Marshal]::ReleaseComObject($cell);[void][Runtime.InteropServices.Marshal]::ReleaseComObject($sheet) }
+                        'closeClone' { $clone.Close($false);[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($clone);$clone=$null;$book.Activate();$response.result=$true }
                         'calculate' { $app.CalculateFull(); $response.result=$true }
+                        'spill' { $sheet=$book.Worksheets.Item('Model');$cell=$sheet.Range('I14');$cell.Formula2='=LL.TABLE("MSFT","FY2025",5)';$app.Calculate();[void][Runtime.InteropServices.Marshal]::ReleaseComObject($cell);[void][Runtime.InteropServices.Marshal]::ReleaseComObject($sheet);$response.result=$true }
                         'bulkFormula' { $sheet=$book.Worksheets.Add(); $sheet.Name='Performance'; $cell=$sheet.Range('A1:A2000'); $watch=[Diagnostics.Stopwatch]::StartNew(); $cell.Formula=$request.formula; $app.Calculate(); $response.result=@{writeAndCalculateMs=$watch.ElapsedMilliseconds;cells=2000}; [void][Runtime.InteropServices.Marshal]::ReleaseComObject($cell); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($sheet) }
                         'cycle' { $previous=$book; [void]$app.Run('LL.NEW'); $book=$books.Item($books.Count); $book.Activate(); [void]$app.Run('LL.OPEN'); $previous.Close($false); [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($previous); $previous=$null; $response.result=$true }
                         'memory' { $currentProcess=Get-Process -Id $excelProcessId; $response.result=@{privateMb=$currentProcess.PrivateMemorySize64/1MB;workingSetMb=$currentProcess.WorkingSet64/1MB;handles=$currentProcess.HandleCount} }
@@ -67,6 +80,7 @@ try {
         Start-Sleep -Milliseconds 100
     }
 } finally {
+    if ($clone) {try{$clone.Close($false);[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($clone)}catch{}}
     if ($pendingBook) {try{$pendingBook.Close($false)}catch{}}
     if ($app) { try { [void]$app.Run('LL.DISCONNECT') } catch {} }
     if ($book) { try {$book.Close($false)}catch{} }

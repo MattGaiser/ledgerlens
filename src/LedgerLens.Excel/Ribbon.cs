@@ -15,7 +15,14 @@ namespace LedgerLens.Excel
         public void RecalculateModel(IRibbonControl control) => Safe(() => HostRuntime.Actions.Recalculate());
         public void UndoUpdate(IRibbonControl control) => Safe(() => HostRuntime.Actions.Rollback());
         public void Health(IRibbonControl control) => Safe(() => HostRuntime.ShowPane("health"));
-        private static void Safe(Action action) { try { action(); } catch (Exception e) { HostRuntime.RecordError(e.Message); System.Windows.Forms.MessageBox.Show(e.Message, "LedgerLens", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information); } }
+        private static void Safe(Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception e) { HostRuntime.RecordError(e.Message); System.Windows.Forms.MessageBox.Show(e.Message, "LedgerLens", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information); }
+        }
     }
 
     public static class Commands

@@ -19,23 +19,49 @@ namespace LedgerLens.Excel
         private long nextId;
         private bool disposed;
         private string latest = "Connecting to research notifications…";
-        public FeedObservable(RuntimeEndpoint endpoint) { this.endpoint = endpoint; }
+        public FeedObservable(RuntimeEndpoint endpoint)
+        {
+            this.endpoint = endpoint;
+        }
         public IDisposable Subscribe(IObserver<object> observer)
         {
             lock (gate)
             {
-                if (disposed) { observer.OnCompleted(); return new Subscription(() => { }); }
-                var id = ++nextId; observers[id] = observer;
+                if (disposed)
+                {
+                    observer.OnCompleted();
+                    return new Subscription(() => { });
+                }
+                var id = ++nextId;
+                observers[id] = observer;
                 observer.OnNext(latest);
-                if (stop == null) { stop = new CancellationTokenSource(); var token = stop.Token; _ = Task.Run(() => RunAsync(token)); }
+                if (stop == null)
+                {
+                    stop = new CancellationTokenSource();
+                    var token = stop.Token;
+                    _ = Task.Run(() => RunAsync(token));
+                }
                 return new Subscription(() => { lock (gate) { observers.Remove(id); if (observers.Count == 0) { stop?.Cancel(); stop?.Dispose(); stop = null; } } });
             }
         }
         private void Publish(string value, CancellationToken cancellation)
         {
             IObserver<object>[] snapshot;
-            lock (gate) { if (disposed || cancellation.IsCancellationRequested) return; latest = value; snapshot = new List<IObserver<object>>(observers.Values).ToArray(); }
-            foreach (var observer in snapshot) { try { observer.OnNext(value); } catch (Exception e) { HostRuntime.RecordError("Stream observer: " + e.GetType().Name); } }
+            lock (gate)
+            {
+                if (disposed || cancellation.IsCancellationRequested)
+                    return;
+                latest = value;
+                snapshot = new List<IObserver<object>>(observers.Values).ToArray();
+            }
+            foreach (var observer in snapshot)
+            {
+                try
+                {
+                    observer.OnNext(value);
+                }
+                catch (Exception e) { HostRuntime.RecordError("Stream observer: " + e.GetType().Name); }
+            }
         }
         private async Task RunAsync(CancellationToken cancellation)
         {
@@ -45,24 +71,31 @@ namespace LedgerLens.Excel
                 using (var socket = new ClientWebSocket())
                 {
                     socket.Options.Proxy = null;
-                    socket.Options.AddSubProtocol("ledgerlens.v1"); socket.Options.AddSubProtocol("ll-auth." + endpoint.Token);
+                    socket.Options.AddSubProtocol("ledgerlens.v1");
+                    socket.Options.AddSubProtocol("ll-auth." + endpoint.Token);
                     try
                     {
                         var uri = new Uri(endpoint.BaseUrl.Replace("http:", "ws:") + "/api/events");
-                        await socket.ConnectAsync(uri, cancellation).ConfigureAwait(false); retry = 0;
+                        await socket.ConnectAsync(uri, cancellation).ConfigureAwait(false);
+                        retry = 0;
                         var buffer = new byte[8192];
                         while (socket.State == WebSocketState.Open && !cancellation.IsCancellationRequested)
                         {
-                            using var message = new MemoryStream(); WebSocketReceiveResult part;
+                            using var message = new MemoryStream();
+                            WebSocketReceiveResult part;
                             do
                             {
                                 part = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellation).ConfigureAwait(false);
-                                if (part.MessageType == WebSocketMessageType.Close) break;
-                                if (part.MessageType != WebSocketMessageType.Text) throw new InvalidDataException("Expected a text notification.");
+                                if (part.MessageType == WebSocketMessageType.Close)
+                                    break;
+                                if (part.MessageType != WebSocketMessageType.Text)
+                                    throw new InvalidDataException("Expected a text notification.");
                                 message.Write(buffer, 0, part.Count);
-                                if (message.Length > 32768) throw new InvalidOperationException("Stream message is too large.");
+                                if (message.Length > 32768)
+                                    throw new InvalidOperationException("Stream message is too large.");
                             } while (!part.EndOfMessage);
-                            if (part.MessageType == WebSocketMessageType.Close) break;
+                            if (part.MessageType == WebSocketMessageType.Close)
+                                break;
                             var item = JObject.Parse(Encoding.UTF8.GetString(message.ToArray()));
                             Publish("#" + item.Value<long>("sequence") + " · " + item.Value<string>("message"), cancellation);
                         }
@@ -70,15 +103,31 @@ namespace LedgerLens.Excel
                     catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return; }
                     catch (Exception e) { HostRuntime.RecordError("Notification connection: " + e.GetType().Name); Publish("Reconnecting to research notifications…", cancellation); }
                 }
-                try { await Task.Delay(Math.Min(1000 * (1 << Math.Min(retry++, 4)), 15000), cancellation).ConfigureAwait(false); }
+                try
+                {
+                    await Task.Delay(Math.Min(1000 * (1 << Math.Min(retry++, 4)), 15000), cancellation).ConfigureAwait(false);
+                }
                 catch (OperationCanceledException) { return; }
             }
         }
         public void Dispose()
         {
-            lock (gate) { disposed = true; stop?.Cancel(); stop?.Dispose(); stop = null; observers.Clear(); }
+            lock (gate)
+            {
+                disposed = true;
+                stop?.Cancel();
+                stop?.Dispose();
+                stop = null;
+                observers.Clear();
+            }
         }
         private sealed class Subscription : IDisposable
-        { private Action? release; public Subscription(Action release) { this.release = release; } public void Dispose() => Interlocked.Exchange(ref release, null)?.Invoke(); }
+        {
+            private Action? release; public Subscription(Action release)
+            {
+                this.release = release;
+            }
+            public void Dispose() => Interlocked.Exchange(ref release, null)?.Invoke();
+        }
     }
 }

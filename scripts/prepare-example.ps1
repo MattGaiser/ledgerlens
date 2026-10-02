@@ -3,7 +3,7 @@ $root=Split-Path -Parent $PSScriptRoot
 Add-Type -AssemblyName System.IO.Compression,System.IO.Compression.FileSystem
 $report=Get-Content -LiteralPath (Join-Path $root 'artifacts\validation\native-results.json') -Raw | ConvertFrom-Json
 if($report.status -ne 'PASS'){throw 'Native tests must pass before preparing the example.'}
-$bookPath=Join-Path $root 'artifacts\LedgerLens-Analyst-Model-1.0.0.xlsx'
+$bookPath=Join-Path $root 'artifacts\LedgerLens-Analyst-Model-1.0.1.xlsx'
 Copy-Item -LiteralPath $report.measurements.workbook -Destination $bookPath -Force
 $zip=[IO.Compression.ZipFile]::Open($bookPath,[IO.Compression.ZipArchiveMode]::Update)
 $errors=@();$formulas=0

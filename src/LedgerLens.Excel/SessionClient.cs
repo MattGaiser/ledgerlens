@@ -18,13 +18,20 @@ namespace LedgerLens.Excel
         private readonly CancellationTokenSource stop = new CancellationTokenSource();
         private readonly FinancialDataset snapshot;
         private int disposed;
-        public RuntimeEndpoint Endpoint { get; }
-        public string Root { get; }
+        public RuntimeEndpoint Endpoint
+        {
+            get;
+        }
+        public string Root
+        {
+            get;
+        }
         public SessionClient(string root)
         {
             Root = root;
             Endpoint = JsonConvert.DeserializeObject<RuntimeEndpoint>(File.ReadAllText(Path.Combine(root, ".runtime", "endpoint.json"))) ?? throw new InvalidDataException("Start the LedgerLens research service first.");
-            if (!Uri.TryCreate(Endpoint.BaseUrl, UriKind.Absolute, out var uri) || uri.Host != "127.0.0.1" || uri.Scheme != "http" || Endpoint.Token.Length != 64) throw new InvalidDataException("Invalid local service configuration.");
+            if (!Uri.TryCreate(Endpoint.BaseUrl, UriKind.Absolute, out var uri) || uri.Host != "127.0.0.1" || uri.Scheme != "http" || Endpoint.Token.Length != 64)
+                throw new InvalidDataException("Invalid local service configuration.");
             http = new HttpClient(new HttpClientHandler { UseProxy = false }) { BaseAddress = uri, Timeout = TimeSpan.FromSeconds(90) };
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Endpoint.Token);
             snapshot = JsonConvert.DeserializeObject<FinancialDataset>(File.ReadAllText(Path.Combine(root, "data", "financials.json"))) ?? throw new InvalidDataException("The evidence snapshot is missing.");
@@ -37,14 +44,18 @@ namespace LedgerLens.Excel
             using (var combined = CancellationTokenSource.CreateLinkedTokenSource(ct, stop.Token))
             using (var request = new HttpRequestMessage(method, path))
             {
-                if (payload != null) request.Content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
+                if (payload != null)
+                    request.Content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
                 using (var response = await http.SendAsync(request, combined.Token).ConfigureAwait(false))
                 {
                     var text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                     if (!response.IsSuccessStatusCode)
                     {
                         string message;
-                        try { message = JObject.Parse(text).Value<string>("message") ?? "The research service rejected the request."; }
+                        try
+                        {
+                            message = JObject.Parse(text).Value<string>("message") ?? "The research service rejected the request.";
+                        }
                         catch (JsonException) { message = "The research service rejected the request."; }
                         throw new ServiceException((int)response.StatusCode, message);
                     }
@@ -61,13 +72,28 @@ namespace LedgerLens.Excel
             catch (Exception e) when (e is HttpRequestException || e is TaskCanceledException && !ct.IsCancellationRequested && !stop.IsCancellationRequested)
             {
                 var saved = Array.Find(snapshot.Facts, f => f.Key.Equals(key));
-                if (saved == null) throw;
+                if (saved == null)
+                    throw;
                 return new FactResult { Fact = saved.Copy(), Freshness = "cached", Provider = "Bundled SEC snapshot", ServedAt = DateTimeOffset.UtcNow, Message = "Service unavailable. Showing saved reported evidence." };
             }
         }
         public void ClearCache() => cache.Clear();
-        public void Dispose() { if (Interlocked.Exchange(ref disposed, 1) == 0) { stop.Cancel(); http.Dispose(); stop.Dispose(); } }
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref disposed, 1) == 0)
+            {
+                stop.Cancel();
+                http.Dispose();
+                stop.Dispose();
+            }
+        }
     }
     internal sealed class ServiceException : Exception
-    { public int Status { get; } public ServiceException(int status, string message) : base(message) { Status = status; } }
+    {
+        public int Status
+        {
+            get;
+        }
+        public ServiceException(int status, string message) : base(message) { Status = status; }
+    }
 }

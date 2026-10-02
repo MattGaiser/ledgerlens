@@ -17,13 +17,19 @@ public sealed class FinancialStore
     {
         this.cachePath = cachePath;
         template = JsonConvert.DeserializeObject<FinancialDataset>(File.ReadAllText(path)) ?? throw new InvalidDataException("Empty financial dataset.");
-        if (template.Version != 1 || template.Facts.Length == 0) throw new InvalidDataException("Unsupported or empty financial dataset.");
-        foreach (var fact in template.Facts) fact.Validate();
-        if (template.Facts.Select(f => f.Key).Distinct().Count() != template.Facts.Length) throw new InvalidDataException("Duplicate source facts.");
+        if (template.Version != 1 || template.Facts.Length == 0)
+            throw new InvalidDataException("Unsupported or empty financial dataset.");
+        foreach (var fact in template.Facts)
+            fact.Validate();
+        if (template.Facts.Select(f => f.Key).Distinct().Count() != template.Facts.Length)
+            throw new InvalidDataException("Duplicate source facts.");
         facts = template.Facts.ToDictionary(f => f.Key, f => f.Copy());
         if (cachePath != null && File.Exists(cachePath))
         {
-            try { Replace(JsonConvert.DeserializeObject<FinancialFact[]>(File.ReadAllText(cachePath)) ?? []); }
+            try
+            {
+                Replace(JsonConvert.DeserializeObject<FinancialFact[]>(File.ReadAllText(cachePath)) ?? []);
+            }
             catch (Exception e) when (e is JsonException or InvalidOperationException or ArgumentException) { /* Corrupt local state never replaces the validated bundled evidence. */ }
         }
     }
@@ -32,16 +38,20 @@ public sealed class FinancialStore
     public int Count => Volatile.Read(ref facts).Count;
     public void Replace(IEnumerable<FinancialFact> replacements)
     {
-        if (replacements == null) throw new ArgumentNullException(nameof(replacements));
+        if (replacements == null)
+            throw new ArgumentNullException(nameof(replacements));
         var complete = replacements.Select(f => f?.Copy() ?? throw new ArgumentException("A replacement fact is missing.")).ToArray();
-        foreach (var fact in complete) fact.Validate();
-        if (complete.Select(f => f.Key).Distinct().Count() != complete.Length) throw new ArgumentException("Duplicate replacement facts.");
+        foreach (var fact in complete)
+            fact.Validate();
+        if (complete.Select(f => f.Key).Distinct().Count() != complete.Length)
+            throw new ArgumentException("Duplicate replacement facts.");
         lock (writeGate)
         {
             var next = new Dictionary<FactKey, FinancialFact>(facts);
             foreach (var fact in complete)
             {
-                if (!next.ContainsKey(fact.Key)) throw new ArgumentException("Replacement is outside the configured research universe.");
+                if (!next.ContainsKey(fact.Key))
+                    throw new ArgumentException("Replacement is outside the configured research universe.");
                 next[fact.Key] = fact;
             }
             if (cachePath != null)
@@ -78,16 +88,21 @@ public sealed class SecClient(HttpClient http)
         var instant = previous.Metric is "Assets" or "Cash";
         var selected = candidates.OfType<JObject>().Where(f =>
         {
-            if ((string?)f["form"] != "10-K" || !DateTime.TryParseExact((string?)f["end"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || end.Year != year) return false;
-            if (!DateTime.TryParseExact((string?)f["filed"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var filed) || filed > acquired.UtcDateTime.Date) return false;
-            if (instant) return f["start"] == null;
+            if ((string?)f["form"] != "10-K" || !DateTime.TryParseExact((string?)f["end"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || end.Year != year)
+                return false;
+            if (!DateTime.TryParseExact((string?)f["filed"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var filed) || filed > acquired.UtcDateTime.Date)
+                return false;
+            if (instant)
+                return f["start"] == null;
             return DateTime.TryParseExact((string?)f["start"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) && (end - start).TotalDays >= 330 && (end - start).TotalDays <= 380;
         }).OrderByDescending(f => (string?)f["filed"], StringComparer.Ordinal).ThenByDescending(f => (string?)f["end"], StringComparer.Ordinal).FirstOrDefault() ?? throw new InvalidDataException($"No annual SEC fact for {previous.Key}.");
         var fact = previous.Copy();
         fact.RawValue = selected.Value<decimal>("val");
         fact.Value = units == "USD" ? fact.RawValue / 1000000m : fact.RawValue;
-        fact.Start = (string?)selected["start"]; fact.End = selected.Value<string>("end")!;
-        fact.Filed = selected.Value<string>("filed")!; fact.Accession = selected.Value<string>("accn")!;
+        fact.Start = (string?)selected["start"];
+        fact.End = selected.Value<string>("end")!;
+        fact.Filed = selected.Value<string>("filed")!;
+        fact.Accession = selected.Value<string>("accn")!;
         fact.SourceUrl = $"https://www.sec.gov/Archives/edgar/data/{long.Parse(cik, CultureInfo.InvariantCulture)}/{fact.Accession.Replace("-", "")}/{fact.Accession}-index.html";
         fact.AcquiredAt = acquired;
         fact.Validate();
