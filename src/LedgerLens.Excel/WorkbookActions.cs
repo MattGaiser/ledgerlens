@@ -38,9 +38,9 @@ namespace LedgerLens.Excel
             var capture = await HostRuntime.OnExcelThread(() => { RequireWindow(windowId); return Capture(); }, cancellation).ConfigureAwait(false);
             var plan = await HostRuntime.Client.PostAsync<RefreshPlan>("/api/refresh/preview", new
             {
-                workbookId = capture.Item1,
-                cells = capture.Item2,
-                dependencies = capture.Item3
+                workbookId = capture.WorkbookId,
+                cells = capture.Cells,
+                dependencies = capture.Dependencies
             }, cancellation).ConfigureAwait(false);
             await HostRuntime.OnExcelThread(() =>
             {
@@ -259,7 +259,7 @@ namespace LedgerLens.Excel
             if (window == null || window.Hwnd != windowId)
                 throw new InvalidOperationException("Activate the workbook containing this pane, then try again. No other workbook was changed.");
         }
-        private Tuple<string, ModelCell[], Dictionary<string, string>> Capture()
+        private (string WorkbookId, ModelCell[] Cells, Dictionary<string, string> Dependencies) Capture()
         {
             using (var scope = new ComScope())
             {
@@ -289,7 +289,7 @@ namespace LedgerLens.Excel
                 }
                 foreach (var address in new[] { "Model!F5", "Model!G5", "Model!F6", "Model!G6" })
                     cells.Add(new ModelCell { Address = address, Content = ReadContent(book, address, scope), IsAnalystInput = true });
-                return Tuple.Create(id, cells.ToArray(), dependencies);
+                return (id, cells.ToArray(), dependencies);
             }
         }
         internal string Identity(Xl.Workbook book, ComScope scope)
@@ -351,7 +351,10 @@ namespace LedgerLens.Excel
     }
     internal sealed class ExcelStateGuard : IDisposable
     {
-        private readonly Xl.Application app; private readonly bool updating, events; private readonly Xl.XlCalculation calculation;
+        private readonly Xl.Application app;
+        private readonly bool updating;
+        private readonly bool events;
+        private readonly Xl.XlCalculation calculation;
         public ExcelStateGuard(Xl.Application app)
         {
             this.app = app;

@@ -8,7 +8,7 @@ The workflow is simple: inspect a financial fact, follow its filing evidence, re
 
 ## Run the Windows release
 
-1. Extract the entire `LedgerLens-1.0.1-windows.zip` into a writable local folder.
+1. Extract the entire `LedgerLens-1.0.2-windows.zip` into a writable local folder.
 2. Double-click **Start LedgerLens.cmd**. It starts the local service and opens a new analyst workbook with the research pane.
 3. On **Model**, choose **LedgerLens → Review updates**, preview the nine reported values, then apply. Change the blue assumptions to explore forecasts.
 4. Use **Research** for cited explanations and **Health** to demonstrate offline mode, recovery, and notifications.
@@ -53,7 +53,7 @@ Example formulas:
 - [Three-minute demo](docs/DEMO.md)
 - [Architecture and design decisions](docs/ARCHITECTURE.md)
 - [Validation report and compatibility scope](docs/VALIDATION.md)
-- [Code review and regression fixes in 1.0.1](docs/CODE-REVIEW.md)
+- [Code review and regression fixes](docs/CODE-REVIEW.md)
 - [Office.js preview](docs/OFFICE-PREVIEW.md)
 - [Data provenance](docs/DATA.md)
 

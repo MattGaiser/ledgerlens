@@ -189,6 +189,18 @@ public sealed class ReliabilityTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CanceledResearchCannotReturnCalculatedAnalysis(bool useAi)
+    {
+        using var client = new HttpClient(new Handler((_, _) => throw new Exception("Must never send")));
+        var service = new ResearchService(client, Store(), new ResilienceState(), new Lifetime(), new ResearchOptions { ReadKey = () => null });
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.AskAsync(new ResearchRequest { UseAi = useAi }, canceled.Token));
+    }
+
     [Fact]
     public async Task IdenticalAiRequestsCoalesceAndReturnedObjectsAreIsolated()
     {
@@ -207,6 +219,9 @@ public sealed class ReliabilityTests
         answers[0].Claims[0].Text = "Changed only here";
         Assert.DoesNotContain(answers.Skip(1), a => a.Claims[0].Text == "Changed only here");
         Assert.True((await service.AskAsync(new ResearchRequest(), default)).Cached);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.AskAsync(new ResearchRequest(), canceled.Token));
     }
 
     private static ResearchService Research(HttpClient http, TimeSpan? timeout = null) => new(http, Store(), new ResilienceState(), new Lifetime(), new ResearchOptions { ReadKey = () => "fake-key-secret", Timeout = timeout ?? TimeSpan.FromSeconds(3) });

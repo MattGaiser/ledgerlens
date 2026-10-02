@@ -4,6 +4,7 @@ $root=Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
     [void](New-Item -ItemType Directory -Path 'artifacts\validation' -Force)
+    $null=& (Join-Path $PSScriptRoot 'project-version.ps1')
     if($Native){
         $sessionPath=Join-Path $root '.runtime\native-test\session.json'
         if(Test-Path -LiteralPath $sessionPath){Remove-Item -LiteralPath $sessionPath}
@@ -29,7 +30,7 @@ try {
     if($LASTEXITCODE -ne 0){throw 'Web formatting check failed.'}
     & $sdk test tests/LedgerLens.Tests/LedgerLens.Tests.csproj -c Release --nologo --logger 'trx;LogFileName=unit-results.trx' --results-directory artifacts/validation/unit
     if($LASTEXITCODE -ne 0){throw '.NET tests failed.'}
-    & node --test tests/office-bridge.test.mjs
+    & node --test tests/office-bridge.test.mjs | Tee-Object -FilePath artifacts/validation/office-adapter.tap
     if($LASTEXITCODE -ne 0){throw 'Office bridge tests failed.'}
     & node scripts/verify-sources.mjs
     if($LASTEXITCODE -ne 0){throw 'SEC source reconciliation failed. Use the source package with data/raw included.'}
@@ -37,10 +38,10 @@ try {
     if($LASTEXITCODE -ne 0){throw 'Service tests failed.'}
     # PowerShell 5 can turn a native stderr warning into a terminating error
     # when output is redirected. These tools report success via their exit code.
-    try { $ErrorActionPreference='Continue'; & (Join-Path $root 'node_modules\.bin\playwright.cmd') test; $code=$LASTEXITCODE }
+    try { $ErrorActionPreference='Continue'; & (Join-Path $root 'node_modules\.bin\playwright.cmd') test 2>&1 | ForEach-Object { $_.ToString() }; $code=$LASTEXITCODE }
     finally { $ErrorActionPreference='Stop' }
     if($code -ne 0){throw 'Browser tests failed.'}
-    try { $ErrorActionPreference='Continue'; & (Join-Path $root 'node_modules\.bin\office-addin-manifest.cmd') validate office/manifest.xml; $code=$LASTEXITCODE }
+    try { $ErrorActionPreference='Continue'; & (Join-Path $root 'node_modules\.bin\office-addin-manifest.cmd') validate office/manifest.xml 2>&1 | ForEach-Object { $_.ToString() } | Tee-Object -FilePath artifacts/validation/office-manifest.txt; $code=$LASTEXITCODE }
     finally { $ErrorActionPreference='Stop' }
     if($code -ne 0){throw 'Office manifest validation failed.'}
 } finally {Pop-Location}

@@ -1,4 +1,23 @@
-# Code review and regression testing — 1.0.1
+# Code review and regression testing
+
+## Second pass — 1.0.2
+
+This review focused on asynchronous write boundaries, cancellation consistency, local resource initialization, and release reproducibility.
+
+| Finding | Change | Evidence |
+| --- | --- | --- |
+| The Office adapter chose its destination after the network request, allowing a changed selection to redirect an insertion | Capture the range first; reload and recheck selection, content, protection and write access after fetching | Selection-change and read-only regressions failed before the fix; edits and protection changes are also covered |
+| The Office adapter accepted a numeric fact belonging to a different request | Require the returned ticker, metric, period and evidence ID to match | Wrong-company regression failed before the fix |
+| Office research export accepted empty claims, duplicate sources or malformed citation collections | Separate bounded validation from worksheet creation; validate the entire answer first | Four additional malformed-answer cases fail before any sheet is created |
+| Research cancellation was ignored by calculated and warm-cache paths | Check cancellation before any early return | Three scenarios failed before the fix and now pass |
+| The native client allocated HTTP resources before validating its evidence file; fallback condition precedence treated network failures differently from timeouts | Validate the local configuration and facts before allocating the client; group fallback exceptions under the same cancellation conditions | Real Excel startup and workbook-close cancellation checks |
+| Workbook captures used positional Item1/Item2/Item3 members | Use a named tuple for workbook identity, cells and dependencies; expand combined state declarations and remove an unused import | Compile and native refresh/rollback coverage |
+| Package and example scripts repeated version literals and accepted stale compiled files | Read the release version through one helper, verify all project manifests agree, and compare assembly versions before packaging | Mismatched-version and stale-assembly rejection checks |
+| The test command displayed current Office output but left previously saved evidence in place | Persist current adapter TAP and manifest output; convert native stderr warnings into log text while checking the process exit code | Full suite successfully run with redirected output |
+
+The before-fix cancellation TRX, Office TAP, release rejection checks, and successful suite logs are retained under `validation/second-review`. See [VALIDATION.md](VALIDATION.md) for current test counts and measurements. Office adapter tests use a mocked API; real Office.js hosts remain unvalidated, and their asynchronous writes are not atomic transactions.
+
+## First pass — 1.0.1
 
 This pass reviewed the calculation cache, workbook transaction boundaries, identity and lifecycle, UI dispatch, event streaming, evidence export, test harness, and release reporting. It includes behavioral fixes and readable, enforced source formatting.
 

@@ -1,6 +1,16 @@
-param([ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version='1.0.1')
+param([ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+$projectVersion=& (Join-Path $PSScriptRoot 'project-version.ps1')
+if($Version -and $Version -ne $projectVersion){throw 'The requested package version does not match the project version.'}
+$Version=$projectVersion
+foreach($relative in @('native\LedgerLens.Core.dll','service\LedgerLens.Service.dll')){
+    $built=Join-Path $root ('artifacts\build\'+$relative)
+    if(-not(Test-Path -LiteralPath $built)){throw 'Run build.ps1 -SelfContained first.'}
+    if([Reflection.AssemblyName]::GetAssemblyName($built).Version.ToString(3) -ne $Version){
+        throw 'Built assemblies do not match the package version. Rebuild before packaging.'
+    }
+}
 # The source archive includes historical validation evidence. Preserve its
 # timestamps when filling reports not produced by a local rerun.
 $priorEvidence=Join-Path $root 'validation'
@@ -39,13 +49,15 @@ foreach($name in @('README.md','Start LedgerLens.cmd','Start-LedgerLens.ps1','St
 [void](New-Item -ItemType Directory -Path (Join-Path $release 'data'))
 Copy-Item -LiteralPath (Join-Path $root 'data\financials.json') -Destination (Join-Path $release 'data')
 [void](New-Item -ItemType Directory -Path (Join-Path $release 'examples'),(Join-Path $release 'validation'))
-Copy-Item -LiteralPath (Join-Path $root 'artifacts\LedgerLens-Analyst-Model-1.0.1.xlsx') -Destination (Join-Path $release 'examples\LedgerLens-Analyst-Model.xlsx')
+Copy-Item -LiteralPath (Join-Path $root ('artifacts\LedgerLens-Analyst-Model-'+$Version+'.xlsx')) -Destination (Join-Path $release 'examples\LedgerLens-Analyst-Model.xlsx')
 foreach($name in @('native-results.json','service-results.json','browser-results.json','source-reconciliation.json','live-openai.json','live-sec-sync.json','dependency-audit.txt','npm-audit.json','office-adapter.tap','office-manifest.txt','workbook-inspection.json')){
     Copy-Item -LiteralPath (Join-Path $root ('artifacts\validation\'+$name)) -Destination (Join-Path $release 'validation')
 }
 Copy-Item -LiteralPath (Join-Path $root 'artifacts\validation\unit\unit-results.trx') -Destination (Join-Path $release 'validation')
-$reviewEvidence=Join-Path $root 'artifacts\validation\quality-review'
-if(Test-Path -LiteralPath $reviewEvidence){Copy-Item -LiteralPath $reviewEvidence -Destination (Join-Path $release 'validation\quality-review') -Recurse}
+foreach($review in @('quality-review','second-review')){
+    $reviewEvidence=Join-Path $root ('artifacts\validation\'+$review)
+    if(Test-Path -LiteralPath $reviewEvidence){Copy-Item -LiteralPath $reviewEvidence -Destination (Join-Path $release ('validation\'+$review)) -Recurse}
+}
 $launchProof=Join-Path $root 'artifacts\validation\release-launch.json'
 if(Test-Path -LiteralPath $launchProof){Copy-Item -LiteralPath $launchProof -Destination (Join-Path $release 'validation')}
 # Explicit source allowlist also works from the source ZIP, without a .git directory.

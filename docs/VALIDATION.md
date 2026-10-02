@@ -1,4 +1,4 @@
-# Validation report — LedgerLens 1.0.1
+# Validation report — LedgerLens 1.0.2
 
 Report generated on 2026-10-02. Each evidence file retains its own test/acquisition timestamp. This is a prototype validation report for one Windows workstation, with measured results and explicit coverage limits.
 
@@ -7,11 +7,11 @@ Report generated on 2026-10-02. Each evidence file retains its own test/acquisit
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Release build, warnings as errors | PASS; native x64/x86 artifacts and self-contained win-x64 service | build.ps1 |
-| .NET unit and contract tests | 50 passed | unit-results.trx |
+| .NET unit and contract tests | 52 passed | unit-results.trx |
 | HTTP, resilience, request limits, WebSocket lifecycle | 15 passed | service-results.json |
 | Real Excel and WebView2 workflow | 19 passed; 0 JavaScript errors | native-results.json |
 | Edge browser UI | 8 passed, 0 unexpected failures | browser-results.json |
-| Office.js adapter | 9 passed | office-adapter.tap |
+| Office.js adapter | 18 passed | office-adapter.tap |
 | Office XML manifest | Validator passed | office-manifest.txt |
 | Original SEC source reconciliation | 81 facts passed against 3 hashed source files | source-reconciliation.json |
 | Live SEC refresh | PASS; 27 MSFT facts; 2518 ms | live-sec-sync.json |
@@ -24,10 +24,10 @@ Machine-readable files are included under validation/ in the release and source 
 
 ## Measured performance
 
-- 2,000 identical asynchronous Excel formulas: **1 provider load**, 39 ms to write/start calculation, 2602.0 ms for all cells to resolve with an injected two-second provider delay.
-- A separate Excel ready/status call during that delay completed in **219.1 ms**. This includes the PowerShell harness polling overhead; it is not a pure UI frame-time measurement.
-- 100 warm local HTTP requests: p50 **0.4 ms**, p95 **0.7 ms**.
-- 12 workbook/pane create-close cycles: Excel private memory ranged from **320.6 to 415.5 MiB**; stream subscriber count was 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2. The short observation is useful lifecycle evidence, not proof against every long-running leak.
+- 2,000 identical asynchronous Excel formulas: **1 provider load**, 36 ms to write/start calculation, 2712.6 ms for all cells to resolve with an injected two-second provider delay.
+- A separate Excel ready/status call during that delay completed in **216.7 ms**. This includes the PowerShell harness polling overhead; it is not a pure UI frame-time measurement.
+- 100 warm local HTTP requests: p50 **0.4 ms**, p95 **0.5 ms**.
+- 12 workbook/pane create-close cycles: Excel private memory ranged from **325.0 to 381.0 MiB**; stream subscriber count was 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2. The short observation is useful lifecycle evidence, not proof against every long-running leak.
 - Closing a workbook canceled 1 pending formula waiter in the real host. Shared provider work remains available to other callers.
 
 Measurements come from this workstation and this bounded dataset. They are not claims about AlphaSense's infrastructure, arbitrary workbooks, or every supported Office version.

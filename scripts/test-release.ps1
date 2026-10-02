@@ -2,7 +2,7 @@ param([string]$Archive, [ValidateRange(1024,65534)][int]$Port=17953)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 if(-not $Archive){
-    $version=(Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
+    $version=& (Join-Path $PSScriptRoot 'project-version.ps1')
     $Archive=Join-Path $root ('dist\LedgerLens-'+$version+'-windows.zip')
 }
 $Archive=(Resolve-Path -LiteralPath $Archive).Path

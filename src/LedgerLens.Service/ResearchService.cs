@@ -19,6 +19,7 @@ public sealed class ResearchService(HttpClient http, FinancialStore store, Resil
 
     public async Task<ResearchAnswer> AskAsync(ResearchRequest request, CancellationToken cancellation)
     {
+        cancellation.ThrowIfCancellationRequested();
         var ticker = new FactKey(request.Ticker, "Revenue", "FY2025").Ticker;
         var question = (request.Question ?? "").Trim();
         if (question.Length < 5 || question.Length > 1200)

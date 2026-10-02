@@ -6,7 +6,7 @@ Launch through `Start LedgerLens.cmd` or `Start-LedgerLens.ps1`. A writable loca
 
 The default service port is 17843. Use `-Port 17853` if occupied. A service is reused only if its executable path, PID, port, and authenticated health check match this folder. Do not run two copies on the same port. After restarting the service, close and relaunch the LedgerLens Excel session so it receives the new session token.
 
-When updating from 1.0.0, save your workbook, close that LedgerLens Excel session, run `Stop-LedgerLens.ps1` from the old release folder, and launch the new release. Keep the old folder until you have confirmed the upgrade. The 1.0.1 review used a separate service port and test Excel instance; it did not change the user's already-open workbook.
+When updating, save your workbook, close that LedgerLens Excel session, run `Stop-LedgerLens.ps1` from the old release folder, and launch the new release. Keep the old folder until you have confirmed the upgrade.
 
 ## OpenAI key
 

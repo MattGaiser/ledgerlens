@@ -30,11 +30,16 @@ namespace LedgerLens.Excel
         {
             Root = root;
             Endpoint = JsonConvert.DeserializeObject<RuntimeEndpoint>(File.ReadAllText(Path.Combine(root, ".runtime", "endpoint.json"))) ?? throw new InvalidDataException("Start the LedgerLens research service first.");
-            if (!Uri.TryCreate(Endpoint.BaseUrl, UriKind.Absolute, out var uri) || uri.Host != "127.0.0.1" || uri.Scheme != "http" || Endpoint.Token.Length != 64)
+            if (!Uri.TryCreate(Endpoint.BaseUrl, UriKind.Absolute, out var uri) || uri.Host != "127.0.0.1" || uri.Scheme != "http" || Endpoint.Token?.Length != 64)
                 throw new InvalidDataException("Invalid local service configuration.");
+            snapshot = JsonConvert.DeserializeObject<FinancialDataset>(File.ReadAllText(Path.Combine(root, "data", "financials.json"))) ?? throw new InvalidDataException("The evidence snapshot is missing.");
+            if (snapshot.Facts == null || snapshot.Facts.Length == 0)
+                throw new InvalidDataException("The evidence snapshot has no financial facts.");
+            foreach (var fact in snapshot.Facts)
+                (fact ?? throw new InvalidDataException("The evidence snapshot contains a missing fact.")).Validate();
+            // Validate local inputs before allocating network resources.
             http = new HttpClient(new HttpClientHandler { UseProxy = false }) { BaseAddress = uri, Timeout = TimeSpan.FromSeconds(90) };
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Endpoint.Token);
-            snapshot = JsonConvert.DeserializeObject<FinancialDataset>(File.ReadAllText(Path.Combine(root, "data", "financials.json"))) ?? throw new InvalidDataException("The evidence snapshot is missing.");
         }
         public FinancialDataset Snapshot => snapshot;
         public async Task<T> GetAsync<T>(string path, CancellationToken ct = default) => await SendAsync<T>(HttpMethod.Get, path, null, ct).ConfigureAwait(false);
@@ -69,7 +74,7 @@ namespace LedgerLens.Excel
             {
                 return await cache.GetAsync(key + ":" + revision.ToString("R", System.Globalization.CultureInfo.InvariantCulture), () => GetAsync<FactResult>("/api/facts/" + key.Ticker + "/" + key.Metric + "/" + key.Period, stop.Token), ct).ConfigureAwait(false);
             }
-            catch (Exception e) when (e is HttpRequestException || e is TaskCanceledException && !ct.IsCancellationRequested && !stop.IsCancellationRequested)
+            catch (Exception e) when ((e is HttpRequestException || e is TaskCanceledException) && !ct.IsCancellationRequested && !stop.IsCancellationRequested)
             {
                 var saved = Array.Find(snapshot.Facts, f => f.Key.Equals(key));
                 if (saved == null)
