@@ -2,6 +2,8 @@
 
 **A sourced financial research workspace inside Microsoft Excel**, using public SEC filings and optional OpenAI research.
 
+Created by Matthew Gaiser.
+
 ![LedgerLens running in Excel](docs/images/excel-workspace.png)
 
 The workflow is simple: inspect a financial fact, follow its filing evidence, research a company, preview nine historical model updates, and apply them without overwriting analyst assumptions or forecast formulas. Every reviewed import appends a durable source audit to the workbook. Undo checks for subsequent edits before restoring values.
@@ -52,7 +54,7 @@ Example formulas:
 - [Office.js preview](docs/OFFICE-PREVIEW.md)
 - [Data provenance](docs/DATA.md)
 
-This is an independent portfolio project, not an AlphaSense product. Enterprise SSO, AWS deployment, signed installation, and managed updates are not implemented. Windows Microsoft 365 Excel x64 has been tested; older Excel and actual Mac/Office.js hosts have not. The project was developed with AI assistance.
+This is an independent portfolio project, not an AlphaSense product. Enterprise SSO, AWS deployment, signed installation, and managed updates are not implemented. Windows Microsoft 365 Excel x64 has been tested; older Excel and actual Mac/Office.js hosts have not.
 
 ## Build and test
 

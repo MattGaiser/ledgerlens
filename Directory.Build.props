@@ -7,7 +7,7 @@
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <Version>1.1.1</Version>
-    <Authors>LedgerLens</Authors>
+    <Authors>Matthew Gaiser</Authors>
     <Copyright>Copyright 2026 LedgerLens contributors</Copyright>
   </PropertyGroup>
 </Project>

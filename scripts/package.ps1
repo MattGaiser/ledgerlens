@@ -34,7 +34,7 @@ foreach($name in @('README.md','Start LedgerLens.cmd','Start-LedgerLens.ps1','St
 [void](New-Item -ItemType Directory -Path (Join-Path $release 'data'))
 Copy-Item -LiteralPath (Join-Path $root 'data\financials.json') -Destination (Join-Path $release 'data')
 # Explicit source allowlist also works from the source ZIP, without a .git directory.
-$files=@('.editorconfig','.prettierrc.json','.gitattributes','.gitignore','README.md','THIRD-PARTY-NOTICES.md','Directory.Build.props','global.json','LedgerLens.sln','build.ps1','Start-LedgerLens.ps1','Stop-LedgerLens.ps1','Start LedgerLens.cmd','package.json','package-lock.json','playwright.config.js','data\financials.json')
+$files=@('.editorconfig','.prettierrc.json','.gitattributes','.gitignore','.mailmap','README.md','THIRD-PARTY-NOTICES.md','Directory.Build.props','global.json','LedgerLens.sln','build.ps1','Start-LedgerLens.ps1','Stop-LedgerLens.ps1','Start LedgerLens.cmd','package.json','package-lock.json','playwright.config.js','data\financials.json')
 foreach($directory in @('src','tests','scripts','docs','web','office','licenses')){
     $files+=@(Get-ChildItem -LiteralPath (Join-Path $root $directory) -File -Recurse | Where-Object {$_.FullName -notmatch '[\\/](bin|obj|EnvironmentCheck)[\\/]' -and $_.Extension -ne '.user'} | ForEach-Object {$_.FullName.Substring($root.Length+1)})
 }
