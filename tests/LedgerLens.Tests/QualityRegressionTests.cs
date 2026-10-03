@@ -128,6 +128,39 @@ public sealed class QualityRegressionTests
     }
 
     [Fact]
+    public void APreviewUsesOneSnapshotEvenWhenSyncPublishesBetweenItsReads()
+    {
+        var store = new FinancialStore(Path.Combine(CoreTests.Root, "data", "financials.json"));
+        var read = store.CaptureReader();
+        var revenue = new FactKey("MSFT", "Revenue", "FY2025");
+        var profit = new FactKey("MSFT", "GrossProfit", "FY2025");
+        var revised = new[] { store.Get(revenue), store.Get(profit) };
+        foreach (var fact in revised)
+        {
+            fact.Value += 1;
+            fact.RawValue += 1000000;
+        }
+        var reads = 0;
+        var plan = RefreshPlanner.Create("book", new[]
+        {
+            new ModelCell { Address = "Model!E10", Content = "e:", Ticker = "MSFT", Metric = "Revenue", Period = "FY2025" },
+            new ModelCell { Address = "Model!E11", Content = "e:", Ticker = "MSFT", Metric = "GrossProfit", Period = "FY2025" }
+        }, key =>
+        {
+            var fact = read(key);
+            if (++reads == 1)
+                store.Replace(revised);
+            return fact;
+        });
+        Assert.Equal(new[] { 281724m, 193893m }, plan.Changes.Select(change => change.NewValue));
+        Assert.Equal(281725m, store.Get(revenue).Value);
+        Assert.Equal(193894m, store.Get(profit).Value);
+        var returned = read(profit);
+        returned.Value = -1;
+        Assert.Equal(193893m, read(profit).Value);
+    }
+
+    [Fact]
     public void AResolverCannotSubstituteAnotherCompanysFact()
     {
         var wrong = CoreTests.Data.Facts.Single(f => f.Ticker == "AAPL" && f.Metric == "Revenue" && f.Period == "FY2025");

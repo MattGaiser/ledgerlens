@@ -277,10 +277,12 @@ namespace LedgerLens.Excel
                 {
                     var address = "Model!E" + (10 + i);
                     var cell = Range(book, address, scope);
+                    if ((bool)cell.HasFormula)
+                        throw new InvalidOperationException("Historical import cells must contain reported values or be empty. Move the formula in " + address + " outside E10:E18 before importing. Nothing was changed.");
                     var metricAddress = "Model!B" + (10 + i);
                     dependencies[metricAddress] = ReadContent(book, metricAddress, scope);
                     var metric = Convert.ToString(Range(book, metricAddress, scope).Value2, CultureInfo.InvariantCulture) ?? "";
-                    cells.Add(new ModelCell { Address = address, Content = Encode(cell), HasFormula = (bool)cell.HasFormula, Ticker = ticker, Metric = metric, Period = period });
+                    cells.Add(new ModelCell { Address = address, Content = Encode(cell), Ticker = ticker, Metric = metric, Period = period });
                     foreach (var column in new[] { "F", "G" })
                     {
                         var forecast = Range(book, "Model!" + column + (10 + i), scope);

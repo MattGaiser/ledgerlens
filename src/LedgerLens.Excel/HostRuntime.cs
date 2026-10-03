@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -60,7 +61,10 @@ namespace LedgerLens.Excel
         }
         private static void OnWorkbookBeforeClose(Xl.Workbook book, ref bool cancel)
         {
-            Actions.Forget(book);
+            if (cancel || application == null)
+                return;
+            var app = application;
+            var closingPanes = new Dictionary<int, PaneHandle>();
             using (var scope = new ComScope())
             {
                 var windows = scope.Own(book.Windows);
@@ -68,12 +72,32 @@ namespace LedgerLens.Excel
                 {
                     var window = scope.Own(windows[index]);
                     if (panes.TryGetValue(window.Hwnd, out var pane))
-                    {
-                        pane.Dispose();
-                        panes.Remove(window.Hwnd);
-                    }
+                        closingPanes[window.Hwnd] = pane;
                 }
             }
+            // BeforeClose precedes the save prompt and can still be canceled.
+            // A queued macro runs once Excel is ready; retain state if the book remains open.
+            ExcelAsyncUtil.QueueAsMacro(() =>
+            {
+                if (!ReferenceEquals(application, app))
+                    return;
+                using (var scope = new ComScope())
+                {
+                    var books = scope.Own(app.Workbooks);
+                    for (var index = 1; index <= books.Count; index++)
+                        if (ReferenceEquals(scope.Own(books[index]), book))
+                            return;
+                }
+                Actions.Forget(book);
+                foreach (var closing in closingPanes)
+                {
+                    if (panes.TryGetValue(closing.Key, out var current) && ReferenceEquals(current, closing.Value))
+                    {
+                        current.Dispose();
+                        panes.Remove(closing.Key);
+                    }
+                }
+            });
         }
         internal static void ShowPane(string tab = "overview")
         {

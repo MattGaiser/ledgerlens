@@ -103,13 +103,25 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => new { status = "ready", version = ProductInfo.Version });
-app.MapGet("/api/catalog", (FinancialStore store) => new { store.Dataset.Companies, metrics = MetricCatalog.Labels.Select(p => new { id = p.Key, label = p.Value }), periods = new[] { "FY2023", "FY2024", "FY2025" }, store.Dataset.SnapshotDate, store.Dataset.Description, facts = store.Dataset.Facts });
+app.MapGet("/api/catalog", (FinancialStore store) =>
+{
+    var snapshot = store.Dataset;
+    return new
+    {
+        snapshot.Companies,
+        metrics = MetricCatalog.Labels.Select(p => new { id = p.Key, label = p.Value }),
+        periods = new[] { "FY2023", "FY2024", "FY2025" },
+        snapshot.SnapshotDate,
+        snapshot.Description,
+        facts = snapshot.Facts
+    };
+});
 app.MapGet("/api/facts/{ticker}/{metric}/{period}", (string ticker, string metric, string period, FactService facts, CancellationToken ct) => facts.Get(new FactKey(ticker, metric, period), ct));
 app.MapPost("/api/facts/batch", (FactKey[] keys, FactService facts, CancellationToken ct) =>
 {
     if (keys == null || keys.Length == 0 || keys.Length > 128 || keys.Any(key => key == null))
         throw new ArgumentException("Batch requests require 1 to 128 non-null facts.");
-    return keys.Select(key => facts.Get(key, ct)).ToArray();
+    return facts.GetBatch(keys, ct);
 });
 app.MapPost("/api/research", async (ResearchRequest request, ResearchService research, EventHub events, CancellationToken ct) =>
 {
@@ -162,7 +174,7 @@ app.MapPost("/api/sync/{ticker}", async (string ticker, FinancialStore store, Se
         syncedAt = DateTimeOffset.UtcNow
     };
 });
-app.MapPost("/api/refresh/preview", (PreviewRequest request, FinancialStore store) => RefreshPlanner.Create(request.WorkbookId, request.Cells, store.Get, request.Dependencies));
+app.MapPost("/api/refresh/preview", (PreviewRequest request, FinancialStore store) => RefreshPlanner.Create(request.WorkbookId, request.Cells, store.CaptureReader(), request.Dependencies));
 app.MapPost("/api/events/test", (EventHub events) => events.Publish("diagnostic", "Notification channel test received."));
 app.Map("/api/events", async (HttpContext context, EventHub events, IHostApplicationLifetime lifetime) =>
 {

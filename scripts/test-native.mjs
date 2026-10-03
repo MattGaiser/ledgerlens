@@ -116,6 +116,19 @@ try {
     assert.equal((await read('E11')).value, null);
     await set('E10', null);
   });
+  await check('canceling workbook closure preserves its pane, preview and undo', async () => {
+    await preview();
+    assert.equal(await excel('cancelClose'), true);
+    await excel('status');
+    await expect(page.locator('#host-state')).toHaveText('Connected to Excel');
+    await apply();
+    assert.equal((await read('E10')).value, 281724);
+    assert.equal(await excel('cancelClose'), true);
+    await excel('status');
+    await page.locator('#rollback-refresh').click();
+    await expect(page.locator('#notice')).toContainText('9 values restored');
+    assert.equal((await read('E10')).value, null);
+  });
   await check('changing the company after preview is a conflict', async () => {
     await preview();
     await set('B4', 'AAPL');
@@ -163,6 +176,23 @@ try {
     assert.equal((await read('E10')).value, 999);
     assert.equal((await read('E11')).value, 193893);
     await set('E10', 281724);
+  });
+  await check('historical formulas cannot survive a different-company import', async () => {
+    await set('B4', 'AAPL');
+    await preview();
+    await excel('set', { sheet: 'Model', address: 'E10', formula: '=281724' });
+    await page.locator('#apply-refresh').click();
+    await expect(page.locator('#notice')).toContainText('Cells edited since preview: Model!E10');
+    await page.locator('#preview-refresh').click();
+    await expect(page.locator('#notice')).toContainText(
+      'Historical import cells must contain reported values',
+    );
+    assert.equal((await excel('get', { sheet: '_LedgerLens', address: 'B3' })).value, 'MSFT');
+    assert.equal((await read('E10')).formula, '=281724');
+    assert.equal((await read('E11')).value, 193893);
+    assert.equal((await read('F10')).value, '');
+    await set('E10', 281724);
+    await set('B4', 'MSFT');
   });
   await check('formula insertion uses the selected empty cell and refuses overwrite', async () => {
     await excel('select', { sheet: 'Model', address: 'I10' });

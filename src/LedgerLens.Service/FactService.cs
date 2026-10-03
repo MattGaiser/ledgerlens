@@ -24,9 +24,24 @@ public sealed class FactService(FinancialStore store, ConnectionState connection
     public FactResult Get(FactKey key, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
-        var fact = store.Get(key);
+        return Result(store.Get(key), connection.Mode);
+    }
+
+    public FactResult[] GetBatch(FactKey[] keys, CancellationToken cancellation)
+    {
+        var read = store.CaptureReader();
+        var mode = connection.Mode;
+        return keys.Select(key =>
+        {
+            cancellation.ThrowIfCancellationRequested();
+            return Result(read(key), mode);
+        }).ToArray();
+    }
+
+    private FactResult Result(FinancialFact fact, ConnectionMode mode)
+    {
         Interlocked.Increment(ref reads);
-        var offline = connection.Mode == ConnectionMode.Offline;
+        var offline = mode == ConnectionMode.Offline;
         return new FactResult
         {
             Fact = fact,

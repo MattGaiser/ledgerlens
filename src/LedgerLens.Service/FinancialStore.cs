@@ -32,7 +32,13 @@ public sealed class FinancialStore
             catch (Exception e) when (e is JsonException or InvalidOperationException or ArgumentException) { /* Corrupt local state never replaces the validated bundled evidence. */ }
         }
     }
-    public FinancialFact Get(FactKey key) => Volatile.Read(ref facts).TryGetValue(key, out var fact) ? fact.Copy() : throw new KeyNotFoundException($"No reported fact for {key}. Supported annual periods: FY2023–FY2025.");
+    public FinancialFact Get(FactKey key) => Read(Volatile.Read(ref facts), key);
+    public Func<FactKey, FinancialFact> CaptureReader()
+    {
+        var snapshot = Volatile.Read(ref facts);
+        return key => Read(snapshot, key);
+    }
+    private static FinancialFact Read(Dictionary<FactKey, FinancialFact> snapshot, FactKey key) => snapshot.TryGetValue(key, out var fact) ? fact.Copy() : throw new KeyNotFoundException($"No reported fact for {key}. Supported annual periods: FY2023–FY2025.");
     public FinancialFact[] ForCompany(string ticker) => Volatile.Read(ref facts).Values.Where(f => f.Ticker == ticker.ToUpperInvariant()).OrderBy(f => f.Period).ThenBy(f => f.Metric).Select(f => f.Copy()).ToArray();
     public int Count => Volatile.Read(ref facts).Count;
     public void Replace(IEnumerable<FinancialFact> replacements)

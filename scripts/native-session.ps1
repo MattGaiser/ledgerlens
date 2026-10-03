@@ -7,11 +7,26 @@ foreach ($name in @('command.json','response.json','session.json')) { $oldFile=J
 $env:LEDGERLENS_ROOT = if($ServiceRoot){$ServiceRoot}else{$root}
 # Enabled only in this integration harness, never by the product launcher.
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=' + $DebugPort
-Add-Type @'
+if (-not $AddInDirectory) { $AddInDirectory = Join-Path $root 'src\LedgerLens.Excel\bin\Release\net48' }
+$interopPath=Join-Path $AddInDirectory 'Microsoft.Office.Interop.Excel.dll'
+Add-Type -Path $interopPath
+Add-Type -ReferencedAssemblies $interopPath -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using Excel = Microsoft.Office.Interop.Excel;
 public class NativeSessionWindow {
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+ public static bool CancelClose(object application, object workbook) {
+     var excel = (Excel.Application)application;
+     var book = (Excel.Workbook)workbook;
+     bool canceled = false;
+     Excel.AppEvents_WorkbookBeforeCloseEventHandler handler = (Excel.Workbook closing, ref bool cancel) => {
+         cancel = true; canceled = true;
+     };
+     excel.WorkbookBeforeClose += handler;
+     try { book.Close(false, Type.Missing, Type.Missing); return canceled; }
+     finally { excel.WorkbookBeforeClose -= handler; }
+ }
 }
 '@
 $app=$null; $book=$null; $blank=$null; $books=$null; $addin=$null; $addinList=$null; $pendingBook=$null; $clone=$null; $excelProcessId=0
@@ -20,7 +35,6 @@ try {
     $app.Visible = $true; $app.DisplayAlerts = $false
     $books=$app.Workbooks; $blank=$books.Add()
     [void][NativeSessionWindow]::GetWindowThreadProcessId([IntPtr]$app.Hwnd,[ref]$excelProcessId)
-    if (-not $AddInDirectory) { $AddInDirectory = Join-Path $root 'src\LedgerLens.Excel\bin\Release\net48' }
     $addinList=$app.AddIns
     # Excel may auto-load an earlier LedgerLens build. Unload it only in this
     # newly created test instance before registering the candidate assembly.
@@ -55,6 +69,7 @@ try {
                         'select' { $book.Activate(); $sheet=$book.Worksheets.Item($request.sheet); $sheet.Activate(); $cell=$sheet.Range($request.address); $cell.Select(); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($cell); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($sheet); $response.result=$true }
                         'activateBlank' { $blank.Activate(); $response.result=$true }
                         'activateModel' { $book.Activate(); $response.result=$true }
+                        'cancelClose' { $response.result=[NativeSessionWindow]::CancelClose($app,$book) }
                         'protect' { $sheet=$book.Worksheets.Item($request.sheet);if($request.enabled){$sheet.Protect()}else{$sheet.Unprotect()};[void][Runtime.InteropServices.Marshal]::ReleaseComObject($sheet);$response.result=$true }
                         'openClone' { $clonePath=Join-Path $sessionDir ('copy-'+[Guid]::NewGuid().ToString('N')+'.xlsx');$book.SaveCopyAs($clonePath);$clone=$books.Open($clonePath,0,[bool]$request.readOnly);$clone.Activate();[void]$app.Run('LL.OPEN');$response.result=$clone.Name }
                         'readClone' { $sheet=$clone.Worksheets.Item('Model');$cell=$sheet.Range('E10');$response.result=$cell.Value2;[void][Runtime.InteropServices.Marshal]::ReleaseComObject($cell);[void][Runtime.InteropServices.Marshal]::ReleaseComObject($sheet) }

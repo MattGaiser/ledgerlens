@@ -8,7 +8,7 @@ The workflow is simple: inspect a financial fact, follow its filing evidence, re
 
 ## Run the Windows release
 
-1. Extract the entire `LedgerLens-1.1.0-windows.zip` into a writable local folder.
+1. Extract the entire `LedgerLens-1.1.1-windows.zip` into a writable local folder.
 2. Double-click **Start LedgerLens.cmd**. It starts the local service and opens a new analyst workbook with the research pane.
 3. On **Model**, choose **LedgerLens → Review updates**, preview the nine reported values, then apply. Change the blue assumptions to explore forecasts.
 4. Use **Research** for cited explanations and **Health** to inspect SEC requests, manage offline mode, and check notifications.

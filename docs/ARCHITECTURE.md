@@ -17,7 +17,7 @@ flowchart LR
 
 `LedgerLens.Excel` targets .NET Framework 4.8. Excel-DNA supplies XLL registration, asynchronous calculation, observable RTD integration, ribbon, and task panes. `RunTaskWithCancellation` connects formula cancellation to workbook lifetime. COM reads and writes run on Excel's main thread through `QueueAsMacro`. Network operations never use COM. See [Excel-DNA's async guidance](https://excel-dna.net/docs/guides-advanced/performing-asynchronous-work/).
 
-The task pane marshals WebView2 calls back to its UI thread after asynchronous work. Panes belong to Excel windows, and a command must still target the active owning window before it can write. Closing a pane cancels queued work. Disposal is idempotent across Excel's callbacks and explicit test shutdown.
+The task pane marshals WebView2 calls back to its UI thread after asynchronous work. Panes belong to Excel windows, and a command must still target the active owning window before it can write. Closing a pane cancels queued work. Workbook cleanup is deferred until Excel is ready and the workbook is confirmed closed, preserving previews and undo when a close attempt is canceled. Disposal is idempotent across Excel's callbacks and explicit test shutdown.
 
 Queued workbook commands have a 25-second deadline. `QueuedAction` makes cancellation atomic with the start of synchronous execution: an expired queued command cannot write later, and a write that has begun reports its actual outcome. The pane retains its service origin independently of the service singleton so late teardown callbacks do not access a disposed client. WebView2 profiles live inside each release's private runtime folder.
 
@@ -27,7 +27,7 @@ Excel-DNA was selected because this demonstration centers on C# UDFs and calcula
 
 ## Model updates
 
-`RefreshPlanner` creates a plan for reported-value cells only. It records original content, workbook identity, company, metric mapping, period, and previous imported company. Application rechecks those dependencies and every target. An edit after preview invalidates the transaction. Protected, merged, read-only, or unexpected targets fail before writes.
+`RefreshPlanner` creates a plan for reported-value cells only. It records original content, workbook identity, company, metric mapping, period, and previous imported company. Application rechecks those dependencies and every target. An edit after preview invalidates the transaction. Historical import cells must contain values or be empty: a formula there blocks the import so it cannot preserve another company's value while advancing the company marker. Forecast formulas and analyst inputs are preserved. Protected, merged, read-only, or unexpected targets fail before writes.
 
 `WorkbookActions` captures each value before changing it. The reported numbers, imported-company marker, and full evidence audit form one transaction. Exceptions trigger restoration; Excel calculation mode, events, and screen updating are restored in `finally`. Rollback checks the post-apply values, including the appended audit, before undoing. Later analyst-input edits survive. The last transaction is retained only for the current session; the source audit is saved with the workbook.
 
@@ -37,7 +37,7 @@ Each open workbook object receives an independent session ID. The saved document
 
 ## Service and resilience
 
-The ASP.NET service runs outside Excel, avoiding provider failures inside the host process. The immutable-by-convention financial snapshot is atomically swapped after validating a whole sync batch; disk persistence uses a temporary file and atomic replacement. A failed batch never partially changes the catalog.
+The ASP.NET service runs outside Excel, avoiding provider failures inside the host process. The immutable-by-convention financial snapshot is atomically swapped after validating a whole sync batch; disk persistence uses a temporary file and atomic replacement. A failed batch never partially changes the catalog. Batch reads and refresh previews capture one snapshot before resolving facts, so a concurrent sync cannot mix evidence versions within an operation.
 
 The Excel client coalesces HTTP reads by normalized fact key and caches results for five minutes. Caller cancellation releases its waiter while shared work remains available to other cells. The service reads facts directly from an immutable in-memory snapshot; snapshot reads perform no external calls and need no retry policy.
 
