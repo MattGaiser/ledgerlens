@@ -353,21 +353,19 @@ async function refreshHealth() {
   $('connection-state').classList.toggle('offline', !online);
   $('connection-state').replaceChildren(
     element('i'),
-    document.createTextNode(
-      online ? 'Connected' : health.mode === 'offline' ? 'Offline cache' : 'Test: ' + health.mode,
-    ),
+    document.createTextNode(online ? 'Connected' : 'Offline cache'),
   );
-  $('health-headline').textContent = `Service ready · circuit ${health.circuit}`;
+  $('health-headline').textContent = `Service ready · SEC circuit ${health.secCircuit}`;
   $('health-description').textContent =
     `${health.sourceFacts} sourced facts · ${health.aiConfigured ? 'OpenAI configured' : 'Calculated analysis available'}`;
   $('health-grid').replaceChildren();
   for (const [value, label] of [
-    [health.cacheHits, 'Cache hits'],
-    [health.coalesced, 'Coalesced requests'],
-    [health.providerCalls, 'Provider calls'],
-    [health.activeRequests, 'Active requests'],
-    [health.fallbacks, 'Snapshot fallbacks'],
-    [health.peakConcurrency + ' / 4', 'Peak provider concurrency'],
+    [health.snapshotReads, 'Snapshot reads'],
+    [health.secRequests, 'SEC HTTP requests'],
+    [health.secRetries, 'SEC retries'],
+    [health.secActiveRequests, 'Active SEC requests'],
+    [health.secPeakConcurrency + ' / 4', 'Peak SEC concurrency'],
+    [health.aiCalls, 'AI requests'],
   ]) {
     const card = element('div', 'health-stat');
     card.append(element('strong', '', value), element('span', '', label));
@@ -563,9 +561,9 @@ document.querySelectorAll('[data-mode]').forEach(
       }
     }),
 );
-$('replay-event').onclick = async () => {
+$('test-connection').onclick = async () => {
   try {
-    await api('/events/publish', { method: 'POST' });
+    await api('/events/test', { method: 'POST' });
     await refreshHealth();
   } catch (e) {
     notice(e.message, true);

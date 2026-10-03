@@ -18,7 +18,9 @@ builder.Logging.AddSimpleConsole(o => { o.SingleLine = true; o.TimestampFormat =
 builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 builder.Services.AddSingleton(new FinancialStore(Path.Combine(root, "data", "financials.json"), Path.Combine(root, ".runtime", "latest-financials.json")));
-builder.Services.AddSingleton<ResilienceState>();
+builder.Services.AddSingleton<ConnectionState>();
+builder.Services.AddSingleton<CircuitBreaker>();
+builder.Services.AddSingleton<SecHttpClient>();
 builder.Services.AddSingleton<FactService>();
 builder.Services.AddSingleton<EventHub>();
 builder.Services.AddSingleton(new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(90) });
@@ -70,6 +72,14 @@ app.Use(async (context, next) =>
     }
     catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
     catch (BadHttpRequestException e) { context.Response.StatusCode = e.StatusCode; }
+    catch (SecUnavailableException error)
+    {
+        await Results.Json(new
+        {
+            code = error.Code,
+            message = error.Message
+        }, statusCode: 502).ExecuteAsync(context);
+    }
     catch (Exception e) when (e is ArgumentException or KeyNotFoundException or ResearchUnavailableException or InvalidDataException)
     {
         var code = e is ResearchUnavailableException ai ? ai.Code : e is KeyNotFoundException ? "not_found" : "invalid_request";
@@ -94,12 +104,12 @@ app.Use(async (context, next) =>
 
 app.MapGet("/health", () => new { status = "ready", version = ProductInfo.Version });
 app.MapGet("/api/catalog", (FinancialStore store) => new { store.Dataset.Companies, metrics = MetricCatalog.Labels.Select(p => new { id = p.Key, label = p.Value }), periods = new[] { "FY2023", "FY2024", "FY2025" }, store.Dataset.SnapshotDate, store.Dataset.Description, facts = store.Dataset.Facts });
-app.MapGet("/api/facts/{ticker}/{metric}/{period}", async (string ticker, string metric, string period, FactService facts, CancellationToken ct) => await facts.GetAsync(new FactKey(ticker, metric, period), ct));
-app.MapPost("/api/facts/batch", async (FactKey[] keys, FactService facts, CancellationToken ct) =>
+app.MapGet("/api/facts/{ticker}/{metric}/{period}", (string ticker, string metric, string period, FactService facts, CancellationToken ct) => facts.Get(new FactKey(ticker, metric, period), ct));
+app.MapPost("/api/facts/batch", (FactKey[] keys, FactService facts, CancellationToken ct) =>
 {
     if (keys == null || keys.Length == 0 || keys.Length > 128 || keys.Any(key => key == null))
         throw new ArgumentException("Batch requests require 1 to 128 non-null facts.");
-    return await Task.WhenAll(keys.Select(key => facts.GetAsync(key, ct)));
+    return keys.Select(key => facts.Get(key, ct)).ToArray();
 });
 app.MapPost("/api/research", async (ResearchRequest request, ResearchService research, EventHub events, CancellationToken ct) =>
 {
@@ -107,20 +117,16 @@ app.MapPost("/api/research", async (ResearchRequest request, ResearchService res
     events.Publish("research", $"{request.Ticker.ToUpperInvariant()} research ready · {answer.Provider}");
     return answer;
 });
-app.MapGet("/api/diagnostics", (FinancialStore store, FactService facts, ResilienceState state, ResearchService research, EventHub events) => new
+app.MapGet("/api/diagnostics", (FinancialStore store, FactService facts, ConnectionState state, SecHttpClient sec, ResearchService research, EventHub events) => new
 {
     version = ProductInfo.Version,
     mode = state.Mode.ToString().ToLowerInvariant(),
-    circuit = state.Circuit,
-    providerCalls = state.ProviderCalls,
-    activeRequests = state.Active,
-    peakConcurrency = state.MaximumActive,
-    retries = state.RetryCount,
-    fallbacks = state.FallbackCount,
-    cacheHits = facts.CacheHits,
-    coalesced = facts.Coalesced,
-    cacheEntries = facts.CacheCount,
-    inFlight = facts.InFlight,
+    secCircuit = sec.Circuit,
+    secRequests = sec.Requests,
+    secActiveRequests = sec.Active,
+    secPeakConcurrency = sec.PeakActive,
+    secRetries = sec.Retries,
+    snapshotReads = facts.Reads,
     sourceFacts = store.Count,
     snapshotDate = store.Dataset.SnapshotDate,
     aiConfigured = research.Configured,
@@ -131,24 +137,22 @@ app.MapGet("/api/diagnostics", (FinancialStore store, FactService facts, Resilie
     recentEvents = events.Recent,
     workingSetMb = Environment.WorkingSet / 1048576
 });
-app.MapPost("/api/connection", (ConnectionRequest request, ResilienceState state, FactService facts, EventHub events) =>
+app.MapPost("/api/connection", (ConnectionRequest request, ConnectionState state, EventHub events) =>
 {
     if (!Enum.TryParse<ConnectionMode>(request.Mode, true, out var mode) || !Enum.IsDefined(mode))
-        throw new ArgumentException("Choose online, offline, slow, or unavailable.");
-    state.SetMode(mode, request.DelayMs);
-    facts.Invalidate();
+        throw new ArgumentException("Choose online or offline.");
+    state.SetMode(mode);
     return events.Publish("connection", "Connection mode: " + mode.ToString().ToLowerInvariant());
 });
-app.MapPost("/api/cache/clear", (FactService facts, ResearchService research, EventHub events) => { facts.Invalidate(); research.Invalidate(); return events.Publish("cache", "Request caches cleared. Saved SEC evidence retained."); });
+app.MapPost("/api/cache/clear", (ResearchService research, EventHub events) => { research.Invalidate(); return events.Publish("cache", "Research cache cleared. Saved SEC evidence retained."); });
 app.MapPost("/api/shutdown", (IHostApplicationLifetime lifetime) => { lifetime.StopApplication(); return Results.Json(new { status = "stopping" }); });
-app.MapPost("/api/sync/{ticker}", async (string ticker, FinancialStore store, SecClient sec, FactService facts, ResearchService research, ResilienceState state, EventHub events, CancellationToken ct) =>
+app.MapPost("/api/sync/{ticker}", async (string ticker, FinancialStore store, SecClient sec, ResearchService research, ConnectionState state, EventHub events, CancellationToken ct) =>
 {
     if (state.Mode == ConnectionMode.Offline)
         throw new ArgumentException("Reconnect before syncing SEC filings.");
     var company = store.Dataset.Companies.SingleOrDefault(c => c.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase)) ?? throw new KeyNotFoundException("Company is not in this research universe.");
     var replacements = await sec.RefreshAsync(company, store.ForCompany(company.Ticker), ct);
     store.Replace(replacements);
-    facts.Invalidate();
     research.Invalidate();
     events.Publish("filings", company.Ticker + " SEC facts revalidated against the live companyfacts API.");
     return new
@@ -159,7 +163,7 @@ app.MapPost("/api/sync/{ticker}", async (string ticker, FinancialStore store, Se
     };
 });
 app.MapPost("/api/refresh/preview", (PreviewRequest request, FinancialStore store) => RefreshPlanner.Create(request.WorkbookId, request.Cells, store.Get, request.Dependencies));
-app.MapPost("/api/events/publish", (EventHub events) => events.Publish("replay", "Demo filing notification replayed. Reported financial values are unchanged."));
+app.MapPost("/api/events/test", (EventHub events) => events.Publish("diagnostic", "Notification channel test received."));
 app.Map("/api/events", async (HttpContext context, EventHub events, IHostApplicationLifetime lifetime) =>
 {
     if (!context.WebSockets.IsWebSocketRequest || !context.WebSockets.WebSocketRequestedProtocols.Contains("ledgerlens.v1"))
@@ -224,7 +228,7 @@ await app.WaitForShutdownAsync();
 
 public sealed class ConnectionRequest
 {
-    public string Mode { get; set; } = "online"; public int DelayMs { get; set; } = 2000;
+    public string Mode { get; set; } = "online";
 }
 public sealed class PreviewRequest
 {

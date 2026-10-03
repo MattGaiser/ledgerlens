@@ -2,7 +2,9 @@
 
 The bundled snapshot contains 81 facts: MSFT, AAPL, and NVDA; FY2023–FY2025; revenue, gross profit, operating income, net income, operating cash flow, capital expenditure, diluted EPS, total assets, and cash/equivalents. It was acquired on 2026-10-02 from the [SEC companyfacts API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces).
 
-`data/financials.json` records the original response URL, SHA-256, acquisition time, and normalized facts. Original responses are included in the source archive under `data/raw`. `node scripts/verify-sources.mjs` independently reconciles all source fields, scaling, annual durations, eligible filing dates, and accession URLs. Live sync revalidates the selected company's 27 facts and persists them locally.
+`data/financials.json` records the original response URL, SHA-256, acquisition time, and normalized facts. Live sync revalidates the selected company's 27 facts and persists them locally. The default tests use this bundled snapshot and small test fixtures; they require no SEC downloads.
+
+Original-response reconciliation is optional. If you have the archived companyfacts responses matching the hashes in `data/financials.json`, place them in `data/raw` as `msft.json`, `aapl.json`, and `nvda.json`, then run `node scripts/verify-sources.mjs` or `.\scripts\test.ps1 -OriginalSources`. This checks source fields, scaling, annual durations, eligible filing dates, and accession URLs. The archives are excluded from Git and release packages. New SEC downloads can differ from the recorded hashes as filings change; they are not substitutes for the original inputs.
 
 | Company | Fiscal calendar | FY2025 revenue (USD millions) |
 | --- | --- | ---: |

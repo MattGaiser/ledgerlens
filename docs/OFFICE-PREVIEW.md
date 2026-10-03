@@ -1,12 +1,12 @@
 # Office.js preview and compatibility boundary
 
-The Office.js adapter supports inserting a sourced numeric value into one empty cell and saving a cited research answer to a new sheet. It checks read-only documents, merged cells, protection, existing values/formulas, and citation membership. Eighteen adapter tests pass. The XML manifest passes Microsoft's validator.
+The Office.js adapter supports inserting a sourced numeric value into one empty cell and saving a cited research answer to a new sheet. It checks read-only documents, merged cells, protection, existing values/formulas, and citation membership. The test suite exercises these guards and runs Microsoft's XML manifest validator.
 
 Insertion captures the destination before fetching data, then checks the selection, cell contents, protection, write access, and returned fact identity before writing. The range stays in one `Excel.run` context, consistent with Microsoft's [application-specific API model](https://learn.microsoft.com/en-us/office/dev/add-ins/develop/application-specific-api-model). These are optimistic checks: Office.js reads and writes happen in separate asynchronous batches, so this preview does not provide an atomic compare-and-write transaction against simultaneous edits.
 
 **No real Office.js host or Mac Excel session was validated.** This is an adapter/manifest preview. Native `LL.*` functions, the C# ribbon, and guarded model refresh are Windows features. The release does not include a Mac-native backend binary.
 
-For a Windows developer preview, first establish a trusted local ASP.NET development certificate using the [.NET development certificate instructions](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-dev-certs). The installed development machine already has one. Then:
+For a Windows developer preview, first establish a trusted local ASP.NET development certificate using the [.NET development certificate instructions](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-dev-certs). Then:
 
 ```powershell
 .\Stop-LedgerLens.ps1

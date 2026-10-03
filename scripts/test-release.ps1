@@ -32,7 +32,7 @@ try {
     $proof | Add-Member -NotePropertyName workflow -NotePropertyValue 'Fresh ZIP extraction in a path containing spaces; native launch, save/reopen, pane initialization and saved XLSX inspection.'
     $proof | Add-Member -NotePropertyName savedFormulas -NotePropertyValue $formulas
     $proof | Add-Member -NotePropertyName savedFormulaErrors -NotePropertyValue $errors.Count
-    $evidence=Join-Path $root 'artifacts\validation'
+    $evidence=Join-Path $root 'artifacts\test-results'
     [void](New-Item -ItemType Directory -Path $evidence -Force)
     $proof | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $evidence 'release-launch.json') -Encoding UTF8
     Write-Output ('PASS: fresh release saved '+$formulas+' formulas with no cached errors.')

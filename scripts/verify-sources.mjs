@@ -65,9 +65,9 @@ for (const input of dataset.inputs) {
 }
 assert.equal(checks.length, 81);
 assert.equal(new Set(checks.map((c) => c.sourceId)).size, 81);
-fs.mkdirSync('artifacts/validation', { recursive: true });
+fs.mkdirSync('artifacts/test-results', { recursive: true });
 fs.writeFileSync(
-  'artifacts/validation/source-reconciliation.json',
+  'artifacts/test-results/source-reconciliation.json',
   JSON.stringify(
     {
       checkedAt: new Date().toISOString(),

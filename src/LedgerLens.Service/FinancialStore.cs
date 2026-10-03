@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net;
 using LedgerLens.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,10 +16,10 @@ public sealed class FinancialStore
     {
         this.cachePath = cachePath;
         template = JsonConvert.DeserializeObject<FinancialDataset>(File.ReadAllText(path)) ?? throw new InvalidDataException("Empty financial dataset.");
-        if (template.Version != 1 || template.Facts.Length == 0)
+        if (template.Version != 1 || template.Facts is not { Length: > 0 } || template.Companies is not { Length: > 0 } || template.Companies.Any(c => c == null))
             throw new InvalidDataException("Unsupported or empty financial dataset.");
         foreach (var fact in template.Facts)
-            fact.Validate();
+            (fact ?? throw new InvalidDataException("A source fact is missing.")).Validate();
         if (template.Facts.Select(f => f.Key).Distinct().Count() != template.Facts.Length)
             throw new InvalidDataException("Duplicate source facts.");
         facts = template.Facts.ToDictionary(f => f.Key, f => f.Copy());
@@ -66,46 +65,72 @@ public sealed class FinancialStore
     }
 }
 
-public sealed class SecClient(HttpClient http)
+public sealed class SecClient(SecHttpClient http)
 {
     public async Task<FinancialFact[]> RefreshAsync(Company company, FinancialFact[] existing, CancellationToken cancellation)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://data.sec.gov/api/xbrl/companyfacts/CIK{company.Cik}.json");
-        request.Headers.UserAgent.ParseAdd("LedgerLens/1.0 (individual financial research prototype)");
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation);
-        response.EnsureSuccessStatusCode();
-        var json = JObject.Parse(await response.Content.ReadAsStringAsync(cancellation));
-        var retrieved = DateTimeOffset.UtcNow;
-        return existing.Select(old => SelectAnnualFact(json, old, company.Cik, retrieved)).ToArray();
+        var body = await http.GetCompanyFactsAsync(company.Cik, cancellation);
+        try
+        {
+            var json = JObject.Parse(body);
+            if (json["cik"] is not JValue { Type: JTokenType.Integer } identity ||
+                !long.TryParse(identity.ToString(Formatting.None), NumberStyles.None, CultureInfo.InvariantCulture, out var cik) ||
+                cik != long.Parse(company.Cik, CultureInfo.InvariantCulture))
+                throw new InvalidDataException("SEC response does not identify the requested company.");
+            var retrieved = DateTimeOffset.UtcNow;
+            var replacements = existing.Select(old => SelectAnnualFact(json, old, company.Cik, retrieved)).ToArray();
+            cancellation.ThrowIfCancellationRequested();
+            return replacements;
+        }
+        catch (Exception error) when (error is JsonException or InvalidDataException)
+        {
+            throw new SecUnavailableException("sec_invalid_data", "SEC returned incomplete or invalid financial evidence. Saved evidence is unchanged.");
+        }
     }
 
     public static FinancialFact SelectAnnualFact(JObject json, FinancialFact previous, string cik, DateTimeOffset acquired)
     {
         var concept = previous.Concept.Split(':')[1];
         var units = previous.Metric == "DilutedEPS" ? "USD/shares" : "USD";
-        var candidates = json["facts"]?["us-gaap"]?[concept]?["units"]?[units] as JArray ?? throw new InvalidDataException($"SEC no longer supplies {concept} in {units}.");
+        var facts = json["facts"] as JObject;
+        var gaap = facts?["us-gaap"] as JObject;
+        var metric = gaap?[concept] as JObject;
+        var unitValues = metric?["units"] as JObject;
+        var candidates = unitValues?[units] as JArray ?? throw new InvalidDataException($"SEC no longer supplies {concept} in {units}.");
         var year = int.Parse(previous.Period.Substring(2), CultureInfo.InvariantCulture);
         var instant = previous.Metric is "Assets" or "Cash";
         var selected = candidates.OfType<JObject>().Where(f =>
         {
-            if ((string?)f["form"] != "10-K" || !DateTime.TryParseExact((string?)f["end"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || end.Year != year)
+            if (Text(f, "form") != "10-K" || !DateTime.TryParseExact(Text(f, "end"), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || end.Year != year)
                 return false;
-            if (!DateTime.TryParseExact((string?)f["filed"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var filed) || filed > acquired.UtcDateTime.Date)
+            if (!DateTime.TryParseExact(Text(f, "filed"), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var filed) || filed > acquired.UtcDateTime.Date)
                 return false;
             if (instant)
                 return f["start"] == null;
-            return DateTime.TryParseExact((string?)f["start"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) && (end - start).TotalDays >= 330 && (end - start).TotalDays <= 380;
-        }).OrderByDescending(f => (string?)f["filed"], StringComparer.Ordinal).ThenByDescending(f => (string?)f["end"], StringComparer.Ordinal).FirstOrDefault() ?? throw new InvalidDataException($"No annual SEC fact for {previous.Key}.");
+            return DateTime.TryParseExact(Text(f, "start"), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) && (end - start).TotalDays >= 330 && (end - start).TotalDays <= 380;
+        }).OrderByDescending(f => Text(f, "filed"), StringComparer.Ordinal).ThenByDescending(f => Text(f, "end"), StringComparer.Ordinal).FirstOrDefault() ?? throw new InvalidDataException($"No annual SEC fact for {previous.Key}.");
+        if (selected["val"] is not JValue number || number.Type is not (JTokenType.Integer or JTokenType.Float) ||
+            !decimal.TryParse(number.ToString(Formatting.None), NumberStyles.Float, CultureInfo.InvariantCulture, out var rawValue))
+            throw new InvalidDataException("SEC annual fact is missing a valid numeric value.");
+        var accession = Text(selected, "accn");
+        if (string.IsNullOrWhiteSpace(accession))
+            throw new InvalidDataException("SEC annual fact is missing its accession.");
         var fact = previous.Copy();
-        fact.RawValue = selected.Value<decimal>("val");
+        fact.RawValue = rawValue;
         fact.Value = units == "USD" ? fact.RawValue / 1000000m : fact.RawValue;
-        fact.Start = (string?)selected["start"];
-        fact.End = selected.Value<string>("end")!;
-        fact.Filed = selected.Value<string>("filed")!;
-        fact.Accession = selected.Value<string>("accn")!;
+        fact.Start = Text(selected, "start");
+        fact.End = Text(selected, "end") ?? throw new InvalidDataException("SEC period end is missing.");
+        fact.Filed = Text(selected, "filed") ?? throw new InvalidDataException("SEC filing date is missing.");
+        fact.Accession = accession;
         fact.SourceUrl = $"https://www.sec.gov/Archives/edgar/data/{long.Parse(cik, CultureInfo.InvariantCulture)}/{fact.Accession.Replace("-", "")}/{fact.Accession}-index.html";
         fact.AcquiredAt = acquired;
-        fact.Validate();
+        try
+        {
+            fact.Validate();
+        }
+        catch (InvalidOperationException error) { throw new InvalidDataException("SEC fact does not satisfy the financial data contract.", error); }
         return fact;
     }
+
+    private static string? Text(JObject value, string property) => value[property]?.Type == JTokenType.String ? value.Value<string>(property) : null;
 }

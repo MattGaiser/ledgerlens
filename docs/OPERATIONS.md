@@ -10,7 +10,7 @@ When updating, save your workbook, close that LedgerLens Excel session, run `Sto
 
 ## OpenAI key
 
-The service reads `OPENAI_API_KEY` from the current Windows user's environment settings, then the process environment. On the development machine, the refreshed key was tested successfully. To configure a different machine without writing the key into shell history:
+The service reads `OPENAI_API_KEY` from the current Windows user's environment settings, then the process environment. To configure it without writing the key into shell history:
 
 ```powershell
 $secret = Read-Host 'OpenAI API key' -AsSecureString
@@ -38,6 +38,6 @@ This stores the key in the Windows user environment, not an encrypted credential
 | AI unavailable | Inspect the sanitized UI error, key configuration, model access, and API billing; select calculated analysis to continue. |
 | SEC sync fails | Existing validated evidence remains available. Check network/proxy access to data.sec.gov and retry later. |
 
-Offline mode is an explicit demonstration state. It preserves historical evidence and marks its freshness. Live SEC sync and AI need external connectivity; they do not bypass corporate proxy or authentication policy. Existing workbook values persist independently of service lifetime.
+Offline mode disables external requests while keeping saved evidence available and marking it as cached. Live SEC sync and AI need external connectivity; they do not bypass corporate proxy or authentication policy. Existing workbook values persist independently of service lifetime.
 
 The native remote-debugging port is used only by `scripts/native-session.ps1`. The product launcher does not enable it. Test scripts close only the Excel instance they created. Avoid editing that instance while tests are running.

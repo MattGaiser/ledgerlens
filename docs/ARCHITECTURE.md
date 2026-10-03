@@ -15,7 +15,7 @@ flowchart LR
 
 ## Native boundary
 
-`LedgerLens.Excel` targets .NET Framework 4.8. Excel-DNA supplies XLL registration, asynchronous calculation, observable RTD integration, ribbon, and task panes. The implementation uses explicit `RunTaskWithCancellation` registration: an earlier optional-parameter registration did not cancel when a workbook closed, and the real-host regression test caught it. COM reads and writes run on Excel's main thread through `QueueAsMacro`. Network operations never use COM. See [Excel-DNA's async guidance](https://excel-dna.net/docs/guides-advanced/performing-asynchronous-work/).
+`LedgerLens.Excel` targets .NET Framework 4.8. Excel-DNA supplies XLL registration, asynchronous calculation, observable RTD integration, ribbon, and task panes. `RunTaskWithCancellation` connects formula cancellation to workbook lifetime. COM reads and writes run on Excel's main thread through `QueueAsMacro`. Network operations never use COM. See [Excel-DNA's async guidance](https://excel-dna.net/docs/guides-advanced/performing-asynchronous-work/).
 
 The task pane marshals WebView2 calls back to its UI thread after asynchronous work. Panes belong to Excel windows, and a command must still target the active owning window before it can write. Closing a pane cancels queued work. Disposal is idempotent across Excel's callbacks and explicit test shutdown.
 
@@ -39,13 +39,19 @@ Each open workbook object receives an independent session ID. The saved document
 
 The ASP.NET service runs outside Excel, avoiding provider failures inside the host process. The immutable-by-convention financial snapshot is atomically swapped after validating a whole sync batch; disk persistence uses a temporary file and atomic replacement. A failed batch never partially changes the catalog.
 
-Both client and service have bounded, time-limited caches. In-flight calls coalesce by normalized key. Caller cancellation releases its waiter, while a shared load can complete for other cells. Clearing a cache advances a generation so old requests cannot repopulate it. Service provider concurrency is four, timeout eight seconds, with two bounded retries. Three failed logical calls open the circuit for eight seconds, followed by one half-open probe. Generation leases prevent old failures from reopening a circuit after a mode change. The fact provider normally serves the validated snapshot; live SEC acquisition is an explicit sync action.
+The Excel client coalesces HTTP reads by normalized fact key and caches results for five minutes. Caller cancellation releases its waiter while shared work remains available to other cells. The service reads facts directly from an immutable in-memory snapshot; snapshot reads perform no external calls and need no retry policy.
 
-WebSocket subscribers have bounded queues and deterministic cleanup. Both the browser and native observable reconnect with backoff. Events are notifications; a demo replay never mutates reported financial facts. This feed is not an event-sourced ledger and does not guarantee durable delivery of every disconnected event.
+Live SEC acquisition is an explicit sync action. `SecHttpClient` limits real SEC GETs to four concurrent operations and a 20-second overall deadline covering queueing, headers, body reading, and retry waits. Network failures and HTTP 408, 429, and 5xx responses allow at most two retries; permanent HTTP errors are not retried. Retry-After is honored within the overall deadline. Three exhausted operations open the circuit for eight seconds, followed by one recovery probe. Generation changes prevent older in-flight completions from closing a newer open circuit. Caller cancellation releases a probe without counting as an outage.
+
+Only a complete, validated SEC response replaces saved evidence. Missing numeric values, malformed accession IDs, and invalid annual records reject the sync and preserve the previous snapshot. Offline mode disables external sync and AI requests while keeping saved facts available.
+
+WebSocket subscribers have bounded queues and deterministic cleanup. Both the browser and native observable reconnect with backoff. Events report completed research, syncs, and connection changes. A connection-test notification checks delivery without changing financial facts. Disconnected events are not durably replayed.
 
 ## AI and trust
 
 The service sends the question and the selected company's 27 public facts to the [OpenAI Responses API with structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs). It does not upload workbook contents. Claim citations must be from the supplied source IDs. Timeouts, refusals, rejected keys, and malformed JSON produce sanitized errors. AI concurrency is two, the request budget is 30 uncached calls per service session, timeout is 75 seconds, and the 64-entry response cache lasts six hours. The default model is `gpt-5-mini`; `LEDGERLENS_AI_MODEL` can override it, subject to API compatibility.
+
+Response JSON types and required fields are checked before conversion; expected parsing and financial-contract failures become sanitized provider errors. Programming exceptions are not used as validation branches. OpenAI POSTs are not automatically retried because an ambiguous failure could duplicate a billed operation.
 
 Schema and citation validation do not prove numerical truth or that a cited record supports a sentence. The UI exposes evidence for review. The deterministic fallback computes growth, margins, and operating cash flow less capex directly from financial facts and is labeled calculated analysis.
 

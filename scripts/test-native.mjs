@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { chromium, expect } from '@playwright/test';
 const directory = '.runtime/native-test';
 const endpoint = JSON.parse(
-  fs.readFileSync('.runtime/endpoint.json', 'utf8').replace(/^\uFEFF/, ''),
+  fs.readFileSync(`${directory}/root/.runtime/endpoint.json`, 'utf8').replace(/^\uFEFF/, ''),
 );
+function network(delayMs) {
+  fs.writeFileSync(`${directory}/network.json`, JSON.stringify({ delayMs }));
+}
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function excel(action, fields = {}) {
   const id = crypto.randomUUID();
@@ -69,14 +72,14 @@ try {
   await check('real WebView2 connects to Excel and shows sourced data', async () => {
     await expect(page.locator('#host-state')).toHaveText('Connected to Excel');
     await expect(page.locator('#revenue-value')).toHaveText('$281.7B');
-    await page.screenshot({ path: 'artifacts/validation/native-overview.png', fullPage: true });
+    await page.screenshot({ path: 'artifacts/test-results/native-overview.png', fullPage: true });
   });
   await check('preview and apply preserve formulas and analyst inputs', async () => {
     const formula = (await read('F10')).formula;
     await page.locator('[data-tab="refresh"]').click();
     await preview();
     await expect(page.locator('#refresh-plan')).toContainText('9 reported values ready');
-    await page.screenshot({ path: 'artifacts/validation/native-refresh.png', fullPage: true });
+    await page.screenshot({ path: 'artifacts/test-results/native-refresh.png', fullPage: true });
     await apply();
     assert.equal((await read('E10')).value, 281724);
     assert.equal((await read('F10')).formula, formula);
@@ -208,7 +211,7 @@ try {
       timeout: 35000,
     });
     assert.equal((await excel('status')).sheetCount, 6);
-    await page.screenshot({ path: 'artifacts/validation/native-research.png', fullPage: true });
+    await page.screenshot({ path: 'artifacts/test-results/native-research.png', fullPage: true });
   });
   await check('Excel application settings are restored', async () => {
     const status = await excel('status');
@@ -244,8 +247,8 @@ try {
     assert.equal(response.status, 200);
     return response.json();
   }
-  await check('2000 repeated asynchronous formulas share one provider load', async () => {
-    await service('/connection', { mode: 'slow' });
+  await check('2000 repeated asynchronous formulas share one HTTP snapshot read', async () => {
+    network(2000);
     const before = await service('/diagnostics');
     const start = performance.now();
     measurements.bulk = await excel('bulkFormula', {
@@ -265,10 +268,10 @@ try {
     assert.equal((await excel('get', { sheet: 'Performance', address: 'A1' })).value, 281724);
     measurements.allCellsResolvedMs = performance.now() - start;
     const after = await service('/diagnostics');
-    measurements.providerLoads = after.providerCalls - before.providerCalls;
-    assert.equal(measurements.providerLoads, 1);
+    measurements.snapshotReads = after.snapshotReads - before.snapshotReads;
+    assert.equal(measurements.snapshotReads, 1);
     assert(measurements.responsivenessMs < 1000);
-    await service('/connection', { mode: 'online' });
+    network(0);
   });
   await check('repeated workbook and pane lifecycle remains functional', async () => {
     measurements.lifecycle = [];
@@ -301,7 +304,7 @@ try {
     );
   });
   await check('closing a workbook cancels its pending formula waiter', async () => {
-    await service('/connection', { mode: 'slow', delayMs: 5000 });
+    network(5000);
     const before = await excel('cancellations');
     await excel('openPending');
     await delay(300);
@@ -317,7 +320,7 @@ try {
       'Excel-DNA should signal cancellation when the requesting workbook closes',
     );
     measurements.canceledWaiters = after - before;
-    await service('/connection', { mode: 'online' });
+    network(0);
   });
   await check('copied workbooks retain independent previews and undo histories', async () => {
     await page.locator('[data-tab="refresh"]').click();
@@ -390,8 +393,9 @@ try {
   failure = error.message;
   throw error;
 } finally {
+  network(0);
   fs.writeFileSync(
-    'artifacts/validation/native-results.json',
+    'artifacts/test-results/native-results.json',
     JSON.stringify(
       {
         checkedAt: new Date().toISOString(),

@@ -54,8 +54,8 @@ test('failure scenarios are explicit and recover', async ({ page }) => {
     await page.getByRole('button', { name: 'Offline', exact: true }).click();
     await expect(page.locator('#connection-state')).toContainText('Offline cache');
     await expect(page.locator('[data-mode=offline]')).toHaveClass(/selected/);
-    await page.getByRole('button', { name: 'Replay notification' }).click();
-    await expect(page.locator('#event-list')).toContainText('Demo filing notification replayed');
+    await page.getByRole('button', { name: 'Test notifications' }).click();
+    await expect(page.locator('#event-list')).toContainText('Notification channel test received');
   } finally {
     await page.getByRole('button', { name: 'Online', exact: true }).click();
   }

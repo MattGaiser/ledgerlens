@@ -1,6 +1,6 @@
 # LedgerLens
 
-**A sourced financial research workspace inside Microsoft Excel.** Built as an independent pre-interview demonstration for the AlphaSense Excel engineering role, using public SEC filings and optional OpenAI research.
+**A sourced financial research workspace inside Microsoft Excel**, using public SEC filings and optional OpenAI research.
 
 ![LedgerLens running in Excel](docs/images/excel-workspace.png)
 
@@ -8,10 +8,10 @@ The workflow is simple: inspect a financial fact, follow its filing evidence, re
 
 ## Run the Windows release
 
-1. Extract the entire `LedgerLens-1.0.2-windows.zip` into a writable local folder.
+1. Extract the entire `LedgerLens-1.1.0-windows.zip` into a writable local folder.
 2. Double-click **Start LedgerLens.cmd**. It starts the local service and opens a new analyst workbook with the research pane.
 3. On **Model**, choose **LedgerLens → Review updates**, preview the nine reported values, then apply. Change the blue assumptions to explore forecasts.
-4. Use **Research** for cited explanations and **Health** to demonstrate offline mode, recovery, and notifications.
+4. Use **Research** for cited explanations and **Health** to inspect SEC requests, manage offline mode, and check notifications.
 
 Windows desktop Excel, .NET Framework 4.8, and Microsoft Edge WebView2 Runtime are required. The service runtime is included; Visual Studio, Node, and the .NET SDK are unnecessary for running the release. The validated host is Microsoft 365 Excel x64, version 16.0, Application.Build 20430. The native add-in is unsigned. If your organization's policy blocks unsigned XLLs, use the browser preview or arrange an approved development environment; the launcher does not change Office security policy.
 
@@ -23,17 +23,14 @@ The existing user-level `OPENAI_API_KEY` is read locally by the service. Without
 .\Stop-LedgerLens.ps1                     # Stop service; leave workbooks open
 ```
 
-## What to demonstrate
+## Features
 
-| Job requirement | Working evidence |
-| --- | --- |
-| C# desktop integration | .NET Framework 4.8 XLL, ribbon, WebView2 task pane, Excel COM adapter |
-| Calculation engine and performance | Async UDFs, shared bounded caches, cancellation, 2,000-cell coalescing test |
-| Complex state and recovery | Preview dependencies, optimistic conflicts, transactional writes, guarded rollback |
-| Financial workflow | Three companies, three fiscal years, nine metrics, scenarios, charts, filing audit |
-| Cloud and AI integration | Out-of-process .NET 10 API, live SEC refresh, OpenAI Responses, validated citation IDs |
-| Reliability and testing | Offline snapshots, bounded retries, circuit breaker, WebSocket cleanup, real Excel automation |
-| Cross-platform strategy | Shared web UI and tested Office.js adapter; actual Mac/Office.js host validation remains pending |
+- C# Excel-DNA add-in with asynchronous formulas, a ribbon, and a WebView2 research pane.
+- Three companies, three fiscal years, and nine financial metrics, with links to SEC filings.
+- Reviewed model updates, edit conflict checks, source audit, and guarded undo.
+- Offline snapshots and explicit SEC sync with bounded HTTP retries, deadlines, and a circuit breaker.
+- Optional AI explanations with source citations, plus calculated analysis that needs no API key.
+- Shared browser UI and an Office.js adapter preview.
 
 Example formulas:
 
@@ -48,16 +45,14 @@ Example formulas:
 
 `LL.METRIC` returns USD millions, except `DilutedEPS` in USD/share. `LL.TABLE` returns an array; spill behavior depends on the Excel version. `LL.LIVE` displays service notifications, not security prices. Optional formula revision arguments allow explicit refresh without volatile UDFs.
 
-## Evidence and review
+## Documentation
 
-- [Three-minute demo](docs/DEMO.md)
+- [Setup and troubleshooting](docs/OPERATIONS.md)
 - [Architecture and design decisions](docs/ARCHITECTURE.md)
-- [Validation report and compatibility scope](docs/VALIDATION.md)
-- [Code review and regression fixes](docs/CODE-REVIEW.md)
 - [Office.js preview](docs/OFFICE-PREVIEW.md)
 - [Data provenance](docs/DATA.md)
 
-This is a portfolio prototype, not an AlphaSense product or a representation of its internal implementation. Enterprise SSO, AWS deployment, signed installation, managed updates, and organization-wide rollout are design discussion topics, not implemented features. The project was developed with substantial AI assistance; review and understand the implementation before presenting it as your work.
+This is an independent portfolio project, not an AlphaSense product. Enterprise SSO, AWS deployment, signed installation, and managed updates are not implemented. Windows Microsoft 365 Excel x64 has been tested; older Excel and actual Mac/Office.js hosts have not. The project was developed with AI assistance.
 
 ## Build and test
 
@@ -74,6 +69,8 @@ npm ci
 .\scripts\test-release.ps1  # Fresh extraction, real Excel launch, saved formula inspection
 ```
 
-The native test starts and closes its own Excel instance. It enables WebView2 debugging only inside the test harness. Performance tests must run without another LedgerLens client issuing requests.
+The standard suite covers .NET contracts, SEC transport failures, the HTTP service, the browser UI, and the mocked Office.js adapter. It requires neither an OpenAI key nor the original SEC downloads. Optional reconciliation against archived SEC responses is described in [data provenance](docs/DATA.md).
 
-A pre-interview project is a small work sample tailored to an employer's actual problem, prepared to demonstrate how you would contribute. This follows the idea of a [value validation project](https://cultivatedculture.com/value-validation-projects-my-best-job-search-strategy-ep-20/): show a concrete result the team can inspect. Here the strongest story is safe, sourced model updates under unreliable network conditions.
+The native test starts and closes its own Excel instance. Network delays come from a test-only proxy, allowing repeatable responsiveness and workbook-close cancellation checks without artificial behavior in the service. Run service load tests separately from native tests. Test results stay under `artifacts/test-results` and are excluded from release packages.
+
+Packaging requires a self-contained build and produces Windows and source ZIPs. The Windows package includes runtime dependencies, documentation, and the financial snapshot; the launcher creates a new workbook.

@@ -4,7 +4,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 30000,
-  reporter: [['list'], ['json', { outputFile: 'artifacts/validation/browser-results.json' }]],
+  reporter: [['list'], ['json', { outputFile: 'artifacts/test-results/browser-results.json' }]],
   use: {
     channel: 'msedge',
     headless: true,

@@ -112,10 +112,10 @@ try {
         };
         ws.onerror = () => reject(new Error('WS connect failed'));
       });
-      await request('/events/publish', 'POST', {});
-      for (let i = 0; i < 40 && !events.some((e) => e.type === 'replay'); i++)
+      await request('/events/test', 'POST', {});
+      for (let i = 0; i < 40 && !events.some((e) => e.type === 'diagnostic'); i++)
         await new Promise((r) => setTimeout(r, 25));
-      assert(events.some((e) => e.type === 'replay'));
+      assert(events.some((e) => e.type === 'diagnostic'));
       await new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('WS close timeout')), 4000);
         ws.onclose = () => {
@@ -169,57 +169,61 @@ try {
     }
     assert.equal((await request('/diagnostics')).body.streamSubscribers, baseline);
   });
-  await check('parallel repeated keys reach provider once', async () => {
-    await request('/connection', 'POST', { mode: 'slow' });
+  await check('snapshot reads never call a remote provider', async () => {
+    await request('/connection', 'POST', { mode: 'online' });
     const before = (await request('/diagnostics')).body;
     const responses = await Promise.all(
       Array.from({ length: 100 }, () => request('/facts/MSFT/Revenue/FY2025')),
     );
     assert(responses.every((r) => r.status === 200 && r.body.fact.value === 281724));
     const after = (await request('/diagnostics')).body;
-    assert.equal(after.providerCalls - before.providerCalls, 1);
-    assert(after.coalesced - before.coalesced >= 90);
-    assert(after.peakConcurrency <= 4);
+    assert.equal(after.snapshotReads - before.snapshotReads, 100);
+    assert.equal(after.secRequests, before.secRequests);
+    assert.equal(after.secActiveRequests, 0);
+    assert.equal('providerCalls' in after, false);
   });
-  await check('2000 mixed requests remain coalesced within four provider slots', async () => {
-    await request('/connection', 'POST', { mode: 'slow', delayMs: 80 });
+  await check('2000 mixed snapshot requests preserve financial values', async () => {
     const facts = (await request('/catalog')).body.facts;
     const before = (await request('/diagnostics')).body;
-    const results = await Promise.all(
+    const responses = await Promise.all(
       Array.from({ length: 2000 }, (_, i) => {
-        const fact = facts[i % facts.length];
-        return request(`/facts/${fact.ticker}/${fact.metric}/${fact.period}`);
+        const f = facts[i % facts.length];
+        return request('/facts/' + f.ticker + '/' + f.metric + '/' + f.period);
       }),
     );
-    assert(results.every((result) => result.status === 200));
+    responses.forEach((r, i) => {
+      assert.equal(r.status, 200);
+      assert.equal(r.body.fact.value, facts[i % facts.length].value);
+    });
     const after = (await request('/diagnostics')).body;
-    assert.equal(after.providerCalls - before.providerCalls, 81);
-    assert(after.peakConcurrency <= 4);
-    assert.equal(after.activeRequests, 0);
-    assert.equal(after.inFlight, 0);
+    assert.equal(after.secRequests, before.secRequests);
+    assert.equal(after.snapshotReads - before.snapshotReads, 2000);
   });
-  await check('offline snapshot is explicit and does not call provider', async () => {
+  await check('offline uses saved facts and blocks external requests', async () => {
     await request('/connection', 'POST', { mode: 'offline' });
     const before = (await request('/diagnostics')).body;
     const result = await request('/facts/AAPL/Revenue/FY2025');
     assert.equal(result.body.fact.value, 416161);
     assert.equal(result.body.freshness, 'cached');
-    assert.equal((await request('/diagnostics')).body.providerCalls, before.providerCalls);
-  });
-  await check('outage retries are bounded and circuit opens', async () => {
-    await request('/connection', 'POST', { mode: 'unavailable' });
-    const before = (await request('/diagnostics')).body;
-    for (const metric of ['Revenue', 'NetIncome', 'GrossProfit', 'Cash'])
-      assert.equal((await request(`/facts/MSFT/${metric}/FY2025`)).body.freshness, 'cached');
+    assert.equal((await request('/sync/MSFT', 'POST', {})).status, 400);
+    const research = await request('/research', 'POST', {
+      ticker: 'MSFT',
+      question: 'Compare annual revenue',
+      useAi: true,
+    });
+    assert.equal(research.body.isAiGenerated, false);
     const after = (await request('/diagnostics')).body;
-    assert.equal(after.circuit, 'open');
-    assert.equal(after.providerCalls - before.providerCalls, 9);
+    assert.equal(after.secRequests, before.secRequests);
+    assert.equal(after.aiCalls, before.aiCalls);
   });
-  await check('recovery clears failure state', async () => {
+  await check('production API rejects artificial failure modes', async () => {
+    for (const mode of ['slow', 'unavailable'])
+      assert.equal((await request('/connection', 'POST', { mode })).status, 400);
+  });
+  await check('online mode restores the external request preference', async () => {
     await request('/connection', 'POST', { mode: 'online' });
-    const result = await request('/facts/NVDA/Revenue/FY2025');
-    assert.equal(result.body.freshness, 'snapshot');
-    assert.equal((await request('/diagnostics')).body.circuit, 'closed');
+    assert.equal((await request('/diagnostics')).body.mode, 'online');
+    assert.equal((await request('/facts/NVDA/Revenue/FY2025')).body.freshness, 'snapshot');
   });
   await check('calculated research is fully cited', async () => {
     const result = await request('/research', 'POST', {
@@ -244,7 +248,7 @@ try {
   });
   durations.sort((a, b) => a - b);
   fs.writeFileSync(
-    'artifacts/validation/service-results.json',
+    'artifacts/test-results/service-results.json',
     JSON.stringify(
       {
         checkedAt: new Date().toISOString(),

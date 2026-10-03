@@ -7,7 +7,7 @@ using LedgerLens.Core;
 
 namespace LedgerLens.Service;
 
-public sealed class ResearchService(HttpClient http, FinancialStore store, ResilienceState state, IHostApplicationLifetime lifetime, ResearchOptions? options = null)
+public sealed class ResearchService(HttpClient http, FinancialStore store, ConnectionState state, IHostApplicationLifetime lifetime, ResearchOptions? options = null)
 {
     private readonly AsyncCache<string, ResearchAnswer> cache = new(TimeSpan.FromHours(6), 64);
     private readonly SemaphoreSlim slots = new(2);
@@ -162,41 +162,71 @@ public sealed class ResearchService(HttpClient http, FinancialStore store, Resil
 
     public static ResearchAnswer ParseResponse(string raw, FinancialFact[] facts)
     {
+        ArgumentNullException.ThrowIfNull(facts);
         try
         {
             using var json = JsonDocument.Parse(raw);
             var root = json.RootElement;
-            if (!root.TryGetProperty("status", out var status) || status.GetString() != "completed")
+            RequireKind(root, JsonValueKind.Object);
+            var status = RequiredProperty(root, "status", JsonValueKind.String);
+            if (status.GetString() != "completed")
                 throw new ResearchUnavailableException("incomplete", "OpenAI returned incomplete research. Nothing was written to the model.");
             var text = new StringBuilder();
-            foreach (var output in root.GetProperty("output").EnumerateArray())
+            foreach (var output in RequiredProperty(root, "output", JsonValueKind.Array).EnumerateArray())
             {
+                RequireKind(output, JsonValueKind.Object);
                 if (!output.TryGetProperty("content", out var content))
                     continue;
+                RequireKind(content, JsonValueKind.Array);
                 foreach (var item in content.EnumerateArray())
                 {
-                    var type = item.GetProperty("type").GetString();
+                    RequireKind(item, JsonValueKind.Object);
+                    var type = RequiredProperty(item, "type", JsonValueKind.String).GetString();
                     if (type == "refusal")
                         throw new ResearchUnavailableException("refusal", "OpenAI declined this question. Try a question about the supplied financial data.");
                     if (type == "output_text")
-                        text.Append(item.GetProperty("text").GetString());
+                        text.Append(RequiredProperty(item, "text", JsonValueKind.String).GetString());
                 }
             }
             var answer = JsonSerializer.Deserialize<ResearchAnswer>(text.ToString(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? throw new JsonException();
-            ResearchValidation.Validate(answer, facts);
+            try
+            {
+                ResearchValidation.Validate(answer, facts);
+            }
+            catch (InvalidOperationException) { throw InvalidResponse(); }
             var ids = answer.Claims.SelectMany(c => c.SourceIds).ToHashSet(StringComparer.Ordinal);
             answer.Sources = facts.Where(f => ids.Contains(f.SourceId)).Select(f => f.Copy()).ToArray();
             answer.IsAiGenerated = true;
             answer.Provider = "OpenAI";
-            answer.Model = root.TryGetProperty("model", out var model) ? model.GetString() ?? "" : "";
+            if (root.TryGetProperty("model", out var model))
+            {
+                RequireKind(model, JsonValueKind.String);
+                answer.Model = model.GetString() ?? "";
+            }
             answer.GeneratedAt = DateTimeOffset.UtcNow;
             return answer;
         }
-        catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException or NullReferenceException or FormatException)
+        catch (JsonException)
         {
-            throw new ResearchUnavailableException("validation", "Research failed its citation or format checks and was discarded. Try calculated analysis.");
+            throw InvalidResponse();
         }
     }
+
+    private static JsonElement RequiredProperty(JsonElement value, string name, JsonValueKind kind)
+    {
+        if (!value.TryGetProperty(name, out var property))
+            throw InvalidResponse();
+        RequireKind(property, kind);
+        return property;
+    }
+
+    private static void RequireKind(JsonElement value, JsonValueKind kind)
+    {
+        if (value.ValueKind != kind)
+            throw InvalidResponse();
+    }
+
+    private static ResearchUnavailableException InvalidResponse() => new("validation", "Research failed its citation or format checks and was discarded. Try calculated analysis.");
 
     public static ResearchAnswer Describe(FinancialFact[] facts, string reason)
     {

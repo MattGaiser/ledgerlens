@@ -15,7 +15,7 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(endpoint.BaseUrl + '/#session=' + endpoint.Token);
   await page.getByText('$281.7B', { exact: true }).waitFor();
-  await page.screenshot({ path: 'artifacts/validation/overview.png', fullPage: true });
+  await page.screenshot({ path: 'artifacts/test-results/overview.png', fullPage: true });
   console.log(
     JSON.stringify({
       errors,

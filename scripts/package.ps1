@@ -11,21 +11,6 @@ foreach($relative in @('native\LedgerLens.Core.dll','service\LedgerLens.Service.
         throw 'Built assemblies do not match the package version. Rebuild before packaging.'
     }
 }
-# The source archive includes historical validation evidence. Preserve its
-# timestamps when filling reports not produced by a local rerun.
-$priorEvidence=Join-Path $root 'validation'
-$evidence=Join-Path $root 'artifacts\validation'
-[void](New-Item -ItemType Directory -Path $evidence -Force)
-if(Test-Path -LiteralPath $priorEvidence){
-    foreach($item in Get-ChildItem -LiteralPath $priorEvidence -File){
-        $target=Join-Path $evidence $item.Name
-        if(-not(Test-Path -LiteralPath $target)){Copy-Item -LiteralPath $item.FullName -Destination $target}
-    }
-}
-& (Join-Path $PSScriptRoot 'prepare-example.ps1')
-Push-Location $root
-try { & node scripts/report-validation.mjs; if($LASTEXITCODE -ne 0){throw 'Validation report generation failed.'} }
-finally {Pop-Location}
 $dist=Join-Path $root 'dist'
 [void](New-Item -ItemType Directory -Path $dist -Force)
 $stage=Join-Path $root ('artifacts\package-'+[Guid]::NewGuid().ToString('N'))
@@ -48,18 +33,6 @@ foreach($name in @('README.md','Start LedgerLens.cmd','Start-LedgerLens.ps1','St
 }
 [void](New-Item -ItemType Directory -Path (Join-Path $release 'data'))
 Copy-Item -LiteralPath (Join-Path $root 'data\financials.json') -Destination (Join-Path $release 'data')
-[void](New-Item -ItemType Directory -Path (Join-Path $release 'examples'),(Join-Path $release 'validation'))
-Copy-Item -LiteralPath (Join-Path $root ('artifacts\LedgerLens-Analyst-Model-'+$Version+'.xlsx')) -Destination (Join-Path $release 'examples\LedgerLens-Analyst-Model.xlsx')
-foreach($name in @('native-results.json','service-results.json','browser-results.json','source-reconciliation.json','live-openai.json','live-sec-sync.json','dependency-audit.txt','npm-audit.json','office-adapter.tap','office-manifest.txt','workbook-inspection.json')){
-    Copy-Item -LiteralPath (Join-Path $root ('artifacts\validation\'+$name)) -Destination (Join-Path $release 'validation')
-}
-Copy-Item -LiteralPath (Join-Path $root 'artifacts\validation\unit\unit-results.trx') -Destination (Join-Path $release 'validation')
-foreach($review in @('quality-review','second-review')){
-    $reviewEvidence=Join-Path $root ('artifacts\validation\'+$review)
-    if(Test-Path -LiteralPath $reviewEvidence){Copy-Item -LiteralPath $reviewEvidence -Destination (Join-Path $release ('validation\'+$review)) -Recurse}
-}
-$launchProof=Join-Path $root 'artifacts\validation\release-launch.json'
-if(Test-Path -LiteralPath $launchProof){Copy-Item -LiteralPath $launchProof -Destination (Join-Path $release 'validation')}
 # Explicit source allowlist also works from the source ZIP, without a .git directory.
 $files=@('.editorconfig','.prettierrc.json','.gitattributes','.gitignore','README.md','THIRD-PARTY-NOTICES.md','Directory.Build.props','global.json','LedgerLens.sln','build.ps1','Start-LedgerLens.ps1','Stop-LedgerLens.ps1','Start LedgerLens.cmd','package.json','package-lock.json','playwright.config.js','data\financials.json')
 foreach($directory in @('src','tests','scripts','docs','web','office','licenses')){
@@ -70,8 +43,6 @@ foreach($relative in $files){
     [void](New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force)
     Copy-Item -LiteralPath (Join-Path $root $relative) -Destination $destination
 }
-Copy-Item -LiteralPath (Join-Path $root 'data\raw') -Destination (Join-Path $source 'data\raw') -Recurse
-Copy-Item -LiteralPath (Join-Path $release 'validation') -Destination $source -Recurse
 foreach($folder in @($release,$source)){
     $manifest=@(Get-ChildItem -LiteralPath $folder -File -Recurse | ForEach-Object { [ordered]@{path=$_.FullName.Substring($folder.Length+1).Replace('\','/');sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant();bytes=$_.Length} })
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $folder 'SHA256SUMS.json') -Encoding UTF8

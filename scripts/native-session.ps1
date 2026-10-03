@@ -1,10 +1,10 @@
-param([int]$DebugPort = 9223, [int]$LifetimeSeconds = 900, [string]$AddInDirectory = '')
+param([int]$DebugPort = 9223, [int]$LifetimeSeconds = 900, [string]$AddInDirectory = '', [string]$ServiceRoot = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $sessionDir = Join-Path $root '.runtime\native-test'
 [void](New-Item -ItemType Directory -Path $sessionDir -Force)
 foreach ($name in @('command.json','response.json','session.json')) { $oldFile=Join-Path $sessionDir $name; if(Test-Path -LiteralPath $oldFile) { Remove-Item -LiteralPath $oldFile } }
-$env:LEDGERLENS_ROOT = $root
+$env:LEDGERLENS_ROOT = if($ServiceRoot){$ServiceRoot}else{$root}
 # Enabled only in this integration harness, never by the product launcher.
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=' + $DebugPort
 Add-Type @'

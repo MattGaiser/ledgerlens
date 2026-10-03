@@ -15,28 +15,29 @@ public sealed class ReliabilityTests
     private static FinancialFact[] Facts => CoreTests.Data.Facts.Where(f => f.Ticker == "MSFT").ToArray();
 
     [Fact]
-    public void CircuitPermitsOnlyOneRecoveryProbeAndIgnoresPreviousConnectionEpochs()
+    public void CircuitPermitsOnlyOneRecoveryProbeAndIgnoresEarlierCompletions()
     {
         var now = DateTimeOffset.UtcNow;
-        var state = new ResilienceState(() => now);
+        var state = new CircuitBreaker(() => now);
+        Assert.True(state.TryEnter(out var earlier));
         for (var i = 0; i < 3; i++)
         {
-            Assert.True(state.TryEnter(out var lease, out _));
+            Assert.True(state.TryEnter(out var lease));
             state.Failed(lease);
         }
-        Assert.Equal("open", state.Circuit);
-        Assert.False(state.TryEnter(out _, out _));
+        state.Succeeded(earlier);
+        Assert.Equal("open", state.State);
+        Assert.False(state.TryEnter(out _));
         now += TimeSpan.FromSeconds(9);
-        Assert.Equal("half-open", state.Circuit);
-        Assert.True(state.TryEnter(out var probe, out _));
-        Assert.False(state.TryEnter(out _, out _));
+        Assert.Equal("half-open", state.State);
+        Assert.True(state.TryEnter(out var probe));
+        Assert.False(state.TryEnter(out _));
         state.Succeeded(probe);
-        Assert.Equal("closed", state.Circuit);
-        state.SetMode(ConnectionMode.Online);
-        state.Failed(probe);
-        state.Failed(probe);
-        state.Failed(probe);
-        Assert.Equal("closed", state.Circuit);
+        Assert.Equal("closed", state.State);
+        state.Failed(earlier);
+        state.Failed(earlier);
+        state.Failed(earlier);
+        Assert.Equal("closed", state.State);
     }
 
     [Fact]
@@ -145,8 +146,15 @@ public sealed class ReliabilityTests
     [Theory]
     [InlineData("not json")]
     [InlineData("[]")]
+    [InlineData("null")]
+    [InlineData("{\"status\":null}")]
+    [InlineData("{\"status\":42}")]
     [InlineData("{\"status\":\"completed\"}")]
     [InlineData("{\"status\":\"completed\",\"output\":null}")]
+    [InlineData("{\"status\":\"completed\",\"output\":[null]}")]
+    [InlineData("{\"status\":\"completed\",\"output\":[{\"content\":null}]}")]
+    [InlineData("{\"status\":\"completed\",\"output\":[{\"content\":[null]}]}")]
+    [InlineData("{\"status\":\"completed\",\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":null}]}]}")]
     [InlineData("{\"status\":\"completed\",\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"{bad}\"}]}]}")]
     public void MalformedProviderResponsesProduceSafeValidationFailures(string raw)
     {
@@ -171,7 +179,7 @@ public sealed class ReliabilityTests
     public async Task MissingKeyUsesLabeledCalculatedAnalysisWithoutAnHttpCall()
     {
         using var client = new HttpClient(new Handler((_, _) => throw new Exception("Must never send")));
-        var service = new ResearchService(client, Store(), new ResilienceState(), new Lifetime(), new ResearchOptions { ReadKey = () => null });
+        var service = new ResearchService(client, Store(), new ConnectionState(), new Lifetime(), new ResearchOptions { ReadKey = () => null });
         var answer = await service.AskAsync(new ResearchRequest(), default);
         Assert.False(answer.IsAiGenerated);
         Assert.Contains(answer.Caveats, c => c.Contains("No OpenAI key"));
@@ -195,7 +203,7 @@ public sealed class ReliabilityTests
     public async Task CanceledResearchCannotReturnCalculatedAnalysis(bool useAi)
     {
         using var client = new HttpClient(new Handler((_, _) => throw new Exception("Must never send")));
-        var service = new ResearchService(client, Store(), new ResilienceState(), new Lifetime(), new ResearchOptions { ReadKey = () => null });
+        var service = new ResearchService(client, Store(), new ConnectionState(), new Lifetime(), new ResearchOptions { ReadKey = () => null });
         using var canceled = new CancellationTokenSource();
         canceled.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.AskAsync(new ResearchRequest { UseAi = useAi }, canceled.Token));
@@ -224,7 +232,7 @@ public sealed class ReliabilityTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.AskAsync(new ResearchRequest(), canceled.Token));
     }
 
-    private static ResearchService Research(HttpClient http, TimeSpan? timeout = null) => new(http, Store(), new ResilienceState(), new Lifetime(), new ResearchOptions { ReadKey = () => "fake-key-secret", Timeout = timeout ?? TimeSpan.FromSeconds(3) });
+    private static ResearchService Research(HttpClient http, TimeSpan? timeout = null) => new(http, Store(), new ConnectionState(), new Lifetime(), new ResearchOptions { ReadKey = () => "fake-key-secret", Timeout = timeout ?? TimeSpan.FromSeconds(3) });
     private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);

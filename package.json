@@ -1,13 +1,13 @@
 {
   "name": "ledgerlens",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test:browser": "playwright test",
     "prepare:data": "node scripts/prepare-data.mjs",
-    "format:check": "prettier --check web scripts/*.mjs tests/**/*.js tests/*.mjs playwright.config.js",
-    "format": "prettier --write web scripts/*.mjs tests/**/*.js tests/*.mjs playwright.config.js"
+    "format:check": "prettier --check web scripts/*.mjs tests/**/*.js tests/**/*.mjs playwright.config.js",
+    "format": "prettier --write web scripts/*.mjs tests/**/*.js tests/**/*.mjs playwright.config.js"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
