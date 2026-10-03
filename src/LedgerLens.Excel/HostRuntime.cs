@@ -65,15 +65,12 @@ namespace LedgerLens.Excel
                 return;
             var app = application;
             var closingPanes = new Dictionary<int, PaneHandle>();
-            using (var scope = new ComScope())
+            var windows = book.Windows;
+            for (var index = 1; index <= windows.Count; index++)
             {
-                var windows = scope.Own(book.Windows);
-                for (var index = 1; index <= windows.Count; index++)
-                {
-                    var window = scope.Own(windows[index]);
-                    if (panes.TryGetValue(window.Hwnd, out var pane))
-                        closingPanes[window.Hwnd] = pane;
-                }
+                var window = windows[index];
+                if (panes.TryGetValue(window.Hwnd, out var pane))
+                    closingPanes[window.Hwnd] = pane;
             }
             // BeforeClose precedes the save prompt and can still be canceled.
             // A queued macro runs once Excel is ready; retain state if the book remains open.
@@ -81,13 +78,10 @@ namespace LedgerLens.Excel
             {
                 if (!ReferenceEquals(application, app))
                     return;
-                using (var scope = new ComScope())
-                {
-                    var books = scope.Own(app.Workbooks);
-                    for (var index = 1; index <= books.Count; index++)
-                        if (ReferenceEquals(scope.Own(books[index]), book))
-                            return;
-                }
+                var books = app.Workbooks;
+                for (var index = 1; index <= books.Count; index++)
+                    if (ReferenceEquals(books[index], book))
+                        return;
                 Actions.Forget(book);
                 foreach (var closing in closingPanes)
                 {
@@ -102,25 +96,22 @@ namespace LedgerLens.Excel
         internal static void ShowPane(string tab = "overview")
         {
             Start();
-            using (var scope = new ComScope())
+            var app = (Xl.Application)ExcelDnaUtil.Application;
+            var window = app.ActiveWindow;
+            if (window == null)
+                throw new InvalidOperationException("Open a workbook first.");
+            if (!panes.TryGetValue(window.Hwnd, out var handle))
             {
-                var app = (Xl.Application)ExcelDnaUtil.Application;
-                var window = scope.Own(app.ActiveWindow);
-                if (window == null)
-                    throw new InvalidOperationException("Open a workbook first.");
-                if (!panes.TryGetValue(window.Hwnd, out var handle))
-                {
-                    var control = new ResearchPane(window.Hwnd);
-                    var pane = CustomTaskPaneFactory.CreateCustomTaskPane(control, "LedgerLens", window);
-                    using (var graphics = control.CreateGraphics())
-                        pane.Width = (int)Math.Round(430 * graphics.DpiX / 96.0);
-                    pane.DockPosition = MsoCTPDockPosition.msoCTPDockPositionRight;
-                    handle = new PaneHandle(pane, control);
-                    panes[window.Hwnd] = handle;
-                }
-                handle.Pane.Visible = true;
-                handle.Control.NavigateTo(tab);
+                var control = new ResearchPane(window.Hwnd);
+                var pane = CustomTaskPaneFactory.CreateCustomTaskPane(control, "LedgerLens", window);
+                using (var graphics = control.CreateGraphics())
+                    pane.Width = (int)Math.Round(430 * graphics.DpiX / 96.0);
+                pane.DockPosition = MsoCTPDockPosition.msoCTPDockPositionRight;
+                handle = new PaneHandle(pane, control);
+                panes[window.Hwnd] = handle;
             }
+            handle.Pane.Visible = true;
+            handle.Control.NavigateTo(tab);
         }
         internal static Task<T> OnExcelThread<T>(Func<T> action, CancellationToken cancellation = default)
         {
@@ -198,23 +189,6 @@ namespace LedgerLens.Excel
                 catch (System.Runtime.InteropServices.COMException) { }
                 finally { Control.Dispose(); }
             }
-        }
-    }
-    internal sealed class ComScope : IDisposable
-    {
-        private readonly System.Collections.Generic.List<object> owned = new System.Collections.Generic.List<object>();
-        public T Own<T>(T item)
-        {
-            if (item != null && System.Runtime.InteropServices.Marshal.IsComObject(item))
-                owned.Add(item);
-            return item;
-        }
-        public void Dispose()
-        {
-            // These RCWs belong to Excel's main-thread apartment. Manually releasing
-            // one can invalidate references shared by Excel-DNA or another callback.
-            // https://excel-dna.net/docs/guides-basic/excel-programming-interfaces/using-the-excel-com-automation-interfaces/
-            owned.Clear();
         }
     }
 }

@@ -21,7 +21,7 @@ The task pane marshals WebView2 calls back to its UI thread after asynchronous w
 
 Queued workbook commands have a 25-second deadline. `QueuedAction` makes cancellation atomic with the start of synchronous execution: an expired queued command cannot write later, and a write that has begun reports its actual outcome. The pane retains its service origin independently of the service singleton so late teardown callbacks do not access a disposed client. WebView2 profiles live inside each release's private runtime folder.
 
-Inside the add-in, RCWs are left to the runtime; manual `ReleaseComObject` can invalidate shared references. The separate PowerShell automation process explicitly releases its own COM references and unloads via Excel's AddIns manager. This distinction follows [Excel-DNA COM guidance](https://excel-dna.net/docs/guides-basic/excel-programming-interfaces/using-the-excel-com-automation-interfaces/).
+Inside the add-in, main-thread COM access uses ordinary managed references. RCW lifetimes are left to the runtime; manual `ReleaseComObject` can invalidate shared references. The separate PowerShell automation process explicitly releases its own COM references and unloads via Excel's AddIns manager. This distinction follows [Excel-DNA COM guidance](https://excel-dna.net/docs/guides-basic/excel-programming-interfaces/using-the-excel-com-automation-interfaces/).
 
 Excel-DNA was selected because this demonstration centers on C# UDFs and calculation behavior. It is not a VSTO implementation. Core contracts, refresh planning, and the service are reusable by a future VSTO adapter. A separate Office.js bridge demonstrates a cross-platform UI seam without claiming native feature parity.
 
